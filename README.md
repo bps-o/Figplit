@@ -1,54 +1,37 @@
-[![Bolt.new: AI-Powered Full-Stack Web Development in the Browser](./public/social_preview_index.jpg)](https://bolt.new)
+[![Figplit — Landing Page AI Studio](./public/social_preview_index.jpg)](https://bolt.new)
 
-# Bolt.new: AI-Powered Full-Stack Web Development in the Browser
+# Figplit: AI Vibe-Coding Agent for Landing Pages
 
-Bolt.new is an AI-powered web development agent that allows you to prompt, run, edit, and deploy full-stack applications directly from your browser—no local setup required. If you're here to build your own AI-powered web dev agent using the Bolt open source codebase, [click here to get started!](./CONTRIBUTING.md)
+Figplit is an opinionated fork of the Bolt.new open-source project that focuses entirely on shipping best-in-class marketing and product landing pages. Instead of trying to build any full-stack application, Figplit leans into the workflows that product teams, founders, and designers use to craft gorgeous public-facing sites with cinematic motion and polished micro-interactions.
 
-## What Makes Bolt.new Different
+Figplit keeps the Bolt foundations—WebContainers, an editable project workspace, and the agentic chat interface—but layers on a design-first experience, curated animation snippets, and prompts that keep the AI centered on storytelling, polish, and brand vibes.
 
-Claude, v0, etc are incredible- but you can't install packages, run backends or edit code. That’s where Bolt.new stands out:
+## Why teams use Figplit
 
-- **Full-Stack in the Browser**: Bolt.new integrates cutting-edge AI models with an in-browser development environment powered by **StackBlitz’s WebContainers**. This allows you to:
-  - Install and run npm tools and libraries (like Vite, Next.js, and more)
-  - Run Node.js servers
-  - Interact with third-party APIs
-  - Deploy to production from chat
-  - Share your work via a URL
+- **Purpose-built for landing pages** – Prompts, examples, and guardrails push the AI toward marketing sites, launch pages, and hero flows instead of generic CRUD apps.
+- **Animation and motion aware** – Figplit understands choreography. It suggests easing curves, orchestrates view transitions, and previews motion so you know how the page feels—not just how it looks.
+- **Reusable visual vocabulary** – A bundled snippet library (see [`/snippets`](./snippets)) gives the agent rich starting points for glassmorphism heroes, marquee reels, pricing matrices, and demo carousels.
+- **Agentic editing loop** – Prompt from the chat panel, watch changes stream into the editor, preview instantly, and deploy without ever leaving the tab.
 
-- **AI with Environment Control**: Unlike traditional dev environments where the AI can only assist in code generation, Bolt.new gives AI models **complete control** over the entire  environment including the filesystem, node server, package manager, terminal, and browser console. This empowers AI agents to handle the entire app lifecycle—from creation to deployment.
+## Getting started locally
 
-Whether you’re an experienced developer, a PM or designer, Bolt.new allows you to build production-grade full-stack applications with ease.
+Figplit is built with Remix and Vite, and runs entirely in WebContainers just like Bolt.
 
-For developers interested in building their own AI-powered development tools with WebContainers, check out the open-source Bolt codebase in this repo!
+1. Install dependencies with `pnpm install`.
+2. Provide an Anthropic API key via the `ANTHROPIC_API_KEY` environment variable.
+3. Start the app with `pnpm dev` and open the provided URL.
 
-## Tips and Tricks
+Once running, the left panel hosts the chat agent. The right panel shows code, terminal output, and the live landing page preview.
 
-Here are some tips to get the most out of Bolt.new:
+## Project tour
 
-- **Be specific about your stack**: If you want to use specific frameworks or libraries (like Astro, Tailwind, ShadCN, or any other popular JavaScript framework), mention them in your initial prompt to ensure Bolt scaffolds the project accordingly.
+- `app/components/chat` – Chat UI, prompt enhancer, and the design-focused onboarding experience.
+- `app/lib/.server/llm` – Server-side LLM orchestration, including the Figplit-specific system prompt.
+- `snippets/` – High-fidelity React + CSS snippets the agent can remix and adapt for new landing pages.
+- `app/components/workbench` – Editor, preview, and terminal surfaces wired to WebContainers.
 
-- **Use the enhance prompt icon**: Before sending your prompt, try clicking the 'enhance' icon to have the AI model help you refine your prompt, then edit the results before submitting.
+## Roadmap & feedback
 
-- **Scaffold the basics first, then add features**: Make sure the basic structure of your application is in place before diving into more advanced functionality. This helps Bolt understand the foundation of your project and ensure everything is wired up right before building out more advanced functionality.
+This fork starts opinionated but intentionally hackable. We want Figplit to be the fastest way to go from idea to production-ready landing page. If you have ideas, encounter bugs, or want to contribute new snippet packs, open an issue or start a discussion.
 
-- **Batch simple instructions**: Save time by combining simple instructions into one message. For example, you can ask Bolt to change the color scheme, add mobile responsiveness, and restart the dev server, all in one go saving you time and reducing API credit consumption significantly.
-
-## FAQs
-
-**Where do I sign up for a paid plan?**  
-Bolt.new is free to get started. If you need more AI tokens or want private projects, you can purchase a paid subscription in your [Bolt.new](https://bolt.new) settings, in the lower-left hand corner of the application. 
-
-**What happens if I hit the free usage limit?**  
-Once your free daily token limit is reached, AI interactions are paused until the next day or until you upgrade your plan.
-
-**Is Bolt in beta?**  
-Yes, Bolt.new is in beta, and we are actively improving it based on feedback.
-
-**How can I report Bolt.new issues?**  
-Check out the [Issues section](https://github.com/stackblitz/bolt.new/issues) to report an issue or request a new feature. Please use the search feature to check if someone else has already submitted the same issue/request.
-
-**What frameworks/libraries currently work on Bolt?**  
-Bolt.new supports most popular JavaScript frameworks and libraries. If it runs on StackBlitz, it will run on Bolt.new as well.
-
-**How can I add make sure my framework/project works well in bolt?**  
-We are excited to work with the JavaScript ecosystem to improve functionality in Bolt. Reach out to us via [hello@stackblitz.com](mailto:hello@stackblitz.com) to discuss how we can partner!
+Built on the incredible foundations from [Bolt.new](https://bolt.new) and the StackBlitz WebContainer API.
