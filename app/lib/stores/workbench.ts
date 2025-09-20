@@ -1,4 +1,5 @@
 import { atom, map, type MapStore, type ReadableAtom, type WritableAtom } from 'nanostores';
+import { posix as nodePath } from 'node:path';
 import type { EditorDocument, ScrollPosition } from '~/components/editor/codemirror/CodeMirrorEditor';
 import { ActionRunner } from '~/lib/runtime/action-runner';
 import type { ActionCallbackData, ArtifactCallbackData } from '~/lib/runtime/message-parser';
@@ -305,24 +306,56 @@ export class WorkbenchStore {
 export const workbenchStore = new WorkbenchStore();
 
 function normalizeDirectory(directory: string, workdir: string) {
-  const trimmedDirectory = directory.replace(/\/+$/g, '');
-  const normalizedWorkdir = workdir.replace(/\/+$/g, '');
+  const normalizedWorkdir = nodePath.normalize(workdir);
+  const sanitizedDirectory = directory.replace(/\/+$/g, '');
 
-  if (!trimmedDirectory) {
+  if (!sanitizedDirectory) {
     return normalizedWorkdir;
   }
 
-  if (!trimmedDirectory.startsWith(normalizedWorkdir)) {
-    throw new Error('Upload path must stay within the project directory.');
+  if (nodePath.isAbsolute(sanitizedDirectory)) {
+    return ensureWithinWorkbench(nodePath.normalize(sanitizedDirectory), normalizedWorkdir);
   }
 
-  return trimmedDirectory;
+  const workdirWithoutLeadingSlash = normalizedWorkdir.replace(/^\/+/, '');
+  const workdirBasename = nodePath.basename(normalizedWorkdir);
+
+  let relativeTarget = sanitizedDirectory;
+
+  const matchesWorkdirPrefix =
+    relativeTarget === workdirWithoutLeadingSlash || relativeTarget.startsWith(`${workdirWithoutLeadingSlash}/`);
+
+  if (matchesWorkdirPrefix) {
+    relativeTarget = relativeTarget.slice(workdirWithoutLeadingSlash.length);
+  } else if (relativeTarget === workdirBasename || relativeTarget.startsWith(`${workdirBasename}/`)) {
+    relativeTarget = relativeTarget.slice(workdirBasename.length);
+  }
+
+  relativeTarget = relativeTarget.replace(/^\/+/, '');
+
+  const absoluteDirectory = nodePath.resolve(normalizedWorkdir, relativeTarget);
+
+  return ensureWithinWorkbench(absoluteDirectory, normalizedWorkdir);
 }
 
 function getRelativeDirectory(directory: string, workdir: string) {
-  if (!directory || directory === workdir) {
+  const normalizedWorkdir = nodePath.normalize(workdir);
+  const normalizedDirectory = nodePath.normalize(directory);
+  const relativePath = nodePath.relative(normalizedWorkdir, normalizedDirectory);
+
+  if (!relativePath || relativePath === '.' || relativePath === '') {
     return '';
   }
 
-  return directory.slice(workdir.length).replace(/^\/+/, '');
+  return relativePath;
+}
+
+function ensureWithinWorkbench(directory: string, workdir: string) {
+  const relativePath = nodePath.relative(workdir, directory);
+
+  if (relativePath && relativePath.startsWith('..')) {
+    throw new Error('Upload path must stay within the project directory.');
+  }
+
+  return directory;
 }
