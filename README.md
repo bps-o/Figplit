@@ -19,7 +19,13 @@ Figplit is built with Remix and Vite, and runs entirely in WebContainers just li
 
 1. Install dependencies with `pnpm install`.
 2. Provide an Anthropic API key via the `ANTHROPIC_API_KEY` environment variable.
-3. Start the app with `pnpm dev` and open the provided URL.
+3. Set a `SESSION_SECRET` for cookie-based authentication.
+4. Start the app with `pnpm dev` and open the provided URL.
+
+To enable the GitHub sync workflow you will also need to configure OAuth credentials:
+
+- `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` from your GitHub OAuth app or GitHub App installation.
+- Optionally set `GITHUB_REDIRECT_URI` if the default of `https://<host>/auth/github/callback` does not match your deployment.
 
 Once running, the left panel hosts the chat agent. The right panel shows code, terminal output, and the live landing page preview.
 

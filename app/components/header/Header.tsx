@@ -4,6 +4,7 @@ import { chatStore } from '~/lib/stores/chat';
 import { classNames } from '~/utils/classNames';
 import { ChatDescription } from '~/lib/persistence/ChatDescription.client';
 import { DeployDialog } from '~/components/workbench/DeployDialog.client';
+import { GitHubSyncDialog } from '~/components/workbench/GitHubSyncDialog.client';
 import { HeaderActionButtons } from './HeaderActionButtons.client';
 
 export function Header() {
@@ -43,6 +44,7 @@ export function Header() {
                 <HeaderActionButtons />
               </div>
               <DeployDialog />
+              <GitHubSyncDialog />
             </>
           )}
         </ClientOnly>

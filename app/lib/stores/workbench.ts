@@ -62,6 +62,7 @@ export class WorkbenchStore {
   currentView: WritableAtom<WorkbenchViewType> = import.meta.hot?.data.currentView ?? atom('code');
   unsavedFiles: WritableAtom<Set<string>> = import.meta.hot?.data.unsavedFiles ?? atom(new Set<string>());
   deployDialogOpen: WritableAtom<boolean> = import.meta.hot?.data.deployDialogOpen ?? atom(false);
+  githubDialogOpen: WritableAtom<boolean> = import.meta.hot?.data.githubDialogOpen ?? atom(false);
   deploymentState: WritableAtom<DeploymentState> =
     import.meta.hot?.data.deploymentState ?? atom(createInitialDeploymentState());
   modifiedFiles = new Set<string>();
@@ -74,6 +75,7 @@ export class WorkbenchStore {
       import.meta.hot.data.showWorkbench = this.showWorkbench;
       import.meta.hot.data.currentView = this.currentView;
       import.meta.hot.data.deployDialogOpen = this.deployDialogOpen;
+      import.meta.hot.data.githubDialogOpen = this.githubDialogOpen;
       import.meta.hot.data.deploymentState = this.deploymentState;
     }
   }
@@ -138,6 +140,10 @@ export class WorkbenchStore {
 
   setDeployDialogOpen(open: boolean) {
     this.deployDialogOpen.set(open);
+  }
+
+  setGitHubDialogOpen(open: boolean) {
+    this.githubDialogOpen.set(open);
   }
 
   resetDeploymentState() {
@@ -368,6 +374,29 @@ export class WorkbenchStore {
 
   getFileModifcations() {
     return this.#filesStore.getFileModifications();
+  }
+
+  getChangedFiles() {
+    const modifications = this.#filesStore.getFileModifications();
+
+    if (!modifications) {
+      return [] as Array<{ path: string; content: string; isBinary: boolean }>;
+    }
+
+    const files = this.#filesStore.files.get();
+    const changed: Array<{ path: string; content: string; isBinary: boolean }> = [];
+
+    for (const filePath of Object.keys(modifications)) {
+      const entry = files[filePath];
+
+      if (entry?.type !== 'file') {
+        continue;
+      }
+
+      changed.push({ path: filePath, content: entry.content, isBinary: entry.isBinary });
+    }
+
+    return changed;
   }
 
   resetAllFileModifications() {
