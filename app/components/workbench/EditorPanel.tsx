@@ -10,6 +10,7 @@ import {
   type OnSaveCallback as OnEditorSave,
   type OnScrollCallback as OnEditorScroll,
 } from '~/components/editor/codemirror/CodeMirrorEditor';
+import { IconButton } from '~/components/ui/IconButton';
 import { PanelHeader } from '~/components/ui/PanelHeader';
 import { PanelHeaderButton } from '~/components/ui/PanelHeaderButton';
 import { shortcutEventEmitter } from '~/lib/hooks';
