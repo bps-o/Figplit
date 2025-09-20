@@ -1,4 +1,4 @@
-import type { Message } from 'ai';
+import type { CompletionTokenUsage, Message } from 'ai';
 import React, { type RefCallback } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { Menu } from '~/components/sidebar/Menu.client';
@@ -8,6 +8,7 @@ import { landingSnippetLibrary } from '~/lib/snippets/landing-snippets';
 import { classNames } from '~/utils/classNames';
 import { Messages } from './Messages.client';
 import { SendButton } from './SendButton.client';
+import { TokenUsageSummary } from './TokenUsageSummary';
 
 import styles from './BaseChat.module.scss';
 
@@ -22,6 +23,8 @@ interface BaseChatProps {
   enhancingPrompt?: boolean;
   promptEnhanced?: boolean;
   input?: string;
+  tokenUsage?: CompletionTokenUsage | null;
+  tokenLimit?: number;
   handleStop?: () => void;
   sendMessage?: (event: React.UIEvent, messageInput?: string) => void;
   handleInputChange?: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
@@ -71,6 +74,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       promptEnhanced = false,
       messages,
       input = '',
+      tokenUsage = null,
+      tokenLimit,
       sendMessage,
       handleInputChange,
       enhancePrompt,
@@ -219,8 +224,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       />
                     )}
                   </ClientOnly>
-                  <div className="flex justify-between text-sm p-4 pt-2">
-                    <div className="flex gap-1 items-center">
+                  <div className="flex flex-wrap justify-between gap-3 text-sm p-4 pt-2">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <TokenUsageSummary usage={tokenUsage} limit={tokenLimit} />
                       <IconButton
                         title="Enhance prompt"
                         disabled={input.length === 0 || enhancingPrompt}

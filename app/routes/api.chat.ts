@@ -1,7 +1,7 @@
 import { type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { MAX_RESPONSE_SEGMENTS, MAX_TOKENS } from '~/lib/.server/llm/constants';
 import { CONTINUE_PROMPT } from '~/lib/.server/llm/prompts';
-import { streamText, type Messages, type StreamingOptions } from '~/lib/.server/llm/stream-text';
+import { streamText, type Messages } from '~/lib/.server/llm/stream-text';
 import SwitchableStream from '~/lib/.server/llm/switchable-stream';
 
 export async function action(args: ActionFunctionArgs) {
@@ -14,33 +14,52 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
   const stream = new SwitchableStream();
 
   try {
-    const options: StreamingOptions = {
-      toolChoice: 'none',
-      onFinish: async ({ text: content, finishReason }) => {
-        if (finishReason !== 'length') {
-          return stream.close();
-        }
+    const runStream = async () => {
+      const result = await streamText(messages, context.cloudflare.env, {
+        toolChoice: 'none',
+        onFinish: async ({ text: content, finishReason, usage }) => {
+          try {
+            result.streamData.append({
+              type: 'token-usage',
+              usage,
+              limit: MAX_TOKENS,
+              segment: stream.switches,
+            });
+          } finally {
+            await result.streamData.close();
+          }
 
-        if (stream.switches >= MAX_RESPONSE_SEGMENTS) {
-          throw Error('Cannot continue message: Maximum segments reached');
-        }
+          if (finishReason !== 'length') {
+            stream.close();
+            return;
+          }
 
-        const switchesLeft = MAX_RESPONSE_SEGMENTS - stream.switches;
+          if (stream.switches >= MAX_RESPONSE_SEGMENTS) {
+            throw Error('Cannot continue message: Maximum segments reached');
+          }
 
-        console.log(`Reached max token limit (${MAX_TOKENS}): Continuing message (${switchesLeft} switches left)`);
+          const switchesLeft = MAX_RESPONSE_SEGMENTS - stream.switches;
 
-        messages.push({ role: 'assistant', content });
-        messages.push({ role: 'user', content: CONTINUE_PROMPT });
+          console.log(`Reached max token limit (${MAX_TOKENS}): Continuing message (${switchesLeft} switches left)`);
 
-        const result = await streamText(messages, context.cloudflare.env, options);
+          messages.push({ role: 'assistant', content });
+          messages.push({ role: 'user', content: CONTINUE_PROMPT });
 
-        return stream.switchSource(result.toAIStream());
-      },
+          await runStream();
+        },
+      });
+
+      const response = result.toAIStreamResponse({ data: result.streamData });
+      const body = response.body;
+
+      if (!body) {
+        throw new Error('Failed to create AI stream body');
+      }
+
+      stream.switchSource(body);
     };
 
-    const result = await streamText(messages, context.cloudflare.env, options);
-
-    stream.switchSource(result.toAIStream());
+    await runStream();
 
     return new Response(stream.readable, {
       status: 200,
