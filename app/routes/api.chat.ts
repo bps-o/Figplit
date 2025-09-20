@@ -169,10 +169,7 @@ function findLastUserMessageIndex(messages: Messages) {
   return -1;
 }
 
-function accumulateUsage(
-  previous: CompletionTokenUsage | null,
-  usage: CompletionTokenUsage,
-): CompletionTokenUsage {
+function accumulateUsage(previous: CompletionTokenUsage | null, usage: CompletionTokenUsage): CompletionTokenUsage {
   if (!previous) {
     return { ...usage };
   }

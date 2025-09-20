@@ -1,6 +1,5 @@
-
 import type { CompletionTokenUsage, Message } from 'ai';
-import React, { type RefCallback } from 'react';
+import React, { type RefCallback, useState } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { Menu } from '~/components/sidebar/Menu.client';
 import { IconButton } from '~/components/ui/IconButton';
@@ -11,6 +10,8 @@ import { Messages } from './Messages.client';
 import { SendButton } from './SendButton.client';
 import { CustomSnippetDialog } from './CustomSnippetDialog';
 import { TokenUsageSummary } from './TokenUsageSummary';
+import type { ContextLimitDetails } from './context-limit';
+import { formatTokens } from './token-usage';
 
 import styles from './BaseChat.module.scss';
 
@@ -32,6 +33,9 @@ interface BaseChatProps {
   sendMessage?: (event: React.UIEvent, messageInput?: string) => void;
   handleInputChange?: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
   enhancePrompt?: () => void;
+  contextLimit?: ContextLimitDetails | null;
+  onForkThread?: () => void;
+  forkingContext?: boolean;
 }
 
 const EXAMPLE_PROMPTS = [
@@ -85,11 +89,16 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       handleInputChange,
       enhancePrompt,
       handleStop,
+      contextLimit = null,
+      onForkThread,
+      forkingContext = false,
     },
     ref,
   ) => {
     const TEXTAREA_MAX_HEIGHT = chatStarted ? 400 : 200;
     const [customSnippetOpen, setCustomSnippetOpen] = useState(false);
+    const canSendMessages = contextLimit?.state !== 'blocked';
+    const effectiveSendMessage = canSendMessages ? sendMessage : undefined;
 
     return (
       <div
@@ -100,7 +109,11 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         )}
         data-chat-visible={showChat}
       >
-        <CustomSnippetDialog open={customSnippetOpen} onOpenChange={setCustomSnippetOpen} sendMessage={sendMessage} />
+        <CustomSnippetDialog
+          open={customSnippetOpen}
+          onOpenChange={setCustomSnippetOpen}
+          sendMessage={effectiveSendMessage}
+        />
         <ClientOnly>{() => <Menu />}</ClientOnly>
         <div ref={scrollRef} className="flex overflow-y-auto w-full h-full">
           <div className={classNames(styles.Chat, 'flex flex-col flex-grow min-w-[var(--chat-min-width)] h-full')}>
@@ -134,17 +147,18 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-bolt-elements-textTertiary">
                       Featured snippet starters
                     </h2>
-                    <CustomSnippetDialog sendMessage={sendMessage} isStreaming={isStreaming} />
+                    <CustomSnippetDialog sendMessage={effectiveSendMessage} isStreaming={isStreaming} />
                   </div>
                   <div className="mt-3 grid gap-3 md:grid-cols-3">
                     {FEATURED_SNIPPETS.map((snippet) => (
                       <button
                         key={snippet.id}
                         type="button"
+                        disabled={!canSendMessages}
                         onClick={(event) => {
-                          sendMessage?.(event, snippet.prompt);
+                          effectiveSendMessage?.(event, snippet.prompt);
                         }}
-                        className="group flex flex-col items-start gap-2 rounded-xl border border-bolt-elements-borderColor/60 bg-bolt-elements-background-depth-1/80 p-4 text-left transition-theme hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/20"
+                        className="group flex flex-col items-start gap-2 rounded-xl border border-bolt-elements-borderColor/60 bg-bolt-elements-background-depth-1/80 p-4 text-left transition-theme hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/20 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <div className="flex items-center gap-2 text-sm font-semibold text-bolt-elements-textPrimary">
                           <div className="i-ph:shapes-duotone text-base text-bolt-elements-item-contentAccent group-hover:text-bolt-elements-item-contentAccent" />
@@ -160,8 +174,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     ))}
                     <button
                       type="button"
+                      disabled={!canSendMessages}
                       onClick={() => setCustomSnippetOpen(true)}
-                      className="group flex flex-col items-start gap-2 rounded-xl border border-dashed border-bolt-elements-borderColor/80 bg-bolt-elements-background-depth-1/40 p-4 text-left transition-theme hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/10"
+                      className="group flex flex-col items-start gap-2 rounded-xl border border-dashed border-bolt-elements-borderColor/80 bg-bolt-elements-background-depth-1/40 p-4 text-left transition-theme hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/10 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <div className="flex items-center gap-2 text-sm font-semibold text-bolt-elements-textPrimary">
                         <div className="i-ph:magic-wand-duotone text-base text-bolt-elements-item-contentAccent group-hover:text-bolt-elements-item-contentAccent" />
@@ -211,10 +226,11 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       <button
                         key={`recommendation-${snippet.id}`}
                         type="button"
+                        disabled={!canSendMessages}
                         onClick={(event) => {
-                          sendMessage?.(event, snippet.prompt);
+                          effectiveSendMessage?.(event, snippet.prompt);
                         }}
-                        className="group flex min-w-[180px] flex-col items-start gap-1 rounded-lg border border-bolt-elements-borderColor/60 bg-bolt-elements-background-depth-1/60 px-3 py-2 text-left transition-theme hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/10"
+                        className="group flex min-w-[180px] flex-col items-start gap-1 rounded-lg border border-bolt-elements-borderColor/60 bg-bolt-elements-background-depth-1/60 px-3 py-2 text-left transition-theme hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/10 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <span className="text-sm font-semibold text-bolt-elements-textPrimary group-hover:text-bolt-elements-item-contentAccent">
                           {snippet.title}
@@ -228,8 +244,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     ))}
                     <button
                       type="button"
+                      disabled={!canSendMessages}
                       onClick={() => setCustomSnippetOpen(true)}
-                      className="group flex min-w-[180px] flex-col items-start gap-1 rounded-lg border border-dashed border-bolt-elements-borderColor/80 bg-bolt-elements-background-depth-1/40 px-3 py-2 text-left transition-theme hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/10"
+                      className="group flex min-w-[180px] flex-col items-start gap-1 rounded-lg border border-dashed border-bolt-elements-borderColor/80 bg-bolt-elements-background-depth-1/40 px-3 py-2 text-left transition-theme hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/10 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <span className="text-sm font-semibold text-bolt-elements-textPrimary group-hover:text-bolt-elements-item-contentAccent">
                         Custom animation lab
@@ -251,59 +268,91 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     'shadow-sm border border-bolt-elements-borderColor bg-bolt-elements-prompt-background backdrop-filter backdrop-blur-[8px] rounded-lg overflow-hidden',
                   )}
                 >
-                  <textarea
-                    ref={textareaRef}
-                    className={`w-full pl-4 pt-4 pr-16 focus:outline-none resize-none text-md text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary bg-transparent`}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        if (event.shiftKey) {
+                  {contextLimit ? (
+                    <ContextLimitNotice
+                      contextLimit={contextLimit}
+                      onForkThread={onForkThread}
+                      forking={forkingContext}
+                    />
+                  ) : null}
+                  <div className="relative">
+                    <textarea
+                      ref={textareaRef}
+                      className={classNames(
+                        'w-full pl-4 pt-4 pr-16 focus:outline-none resize-none text-md text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary bg-transparent',
+                        {
+                          'cursor-not-allowed opacity-60': !canSendMessages,
+                        },
+                      )}
+                      onKeyDown={(event) => {
+                        if (!canSendMessages) {
+                          event.preventDefault();
                           return;
                         }
 
-                        event.preventDefault();
-
-                        sendMessage?.(event);
-                      }
-                    }}
-                    value={input}
-                    onChange={(event) => {
-                      handleInputChange?.(event);
-                    }}
-                    style={{
-                      minHeight: TEXTAREA_MIN_HEIGHT,
-                      maxHeight: TEXTAREA_MAX_HEIGHT,
-                    }}
-                    placeholder="What landing page magic should Figplit design next?"
-                    translate="no"
-                  />
-                  <ClientOnly>
-                    {() => (
-                      <SendButton
-                        show={input.length > 0 || isStreaming}
-                        isStreaming={isStreaming}
-                        onClick={(event) => {
-                          if (isStreaming) {
-                            handleStop?.();
+                        if (event.key === 'Enter') {
+                          if (event.shiftKey) {
                             return;
                           }
 
-                          sendMessage?.(event);
-                        }}
-                      />
-                    )}
-                  </ClientOnly>
+                          event.preventDefault();
+
+                          effectiveSendMessage?.(event);
+                        }
+                      }}
+                      readOnly={!canSendMessages}
+                      aria-disabled={!canSendMessages}
+                      value={input}
+                      onChange={(event) => {
+                        handleInputChange?.(event);
+                      }}
+                      style={{
+                        minHeight: TEXTAREA_MIN_HEIGHT,
+                        maxHeight: TEXTAREA_MAX_HEIGHT,
+                      }}
+                      placeholder="What landing page magic should Figplit design next?"
+                      translate="no"
+                    />
+                    <ClientOnly>
+                      {() => (
+                        <SendButton
+                          show={input.length > 0 || isStreaming}
+                          isStreaming={isStreaming}
+                          disabled={!canSendMessages && !isStreaming}
+                          onClick={(event) => {
+                            if (isStreaming) {
+                              handleStop?.();
+                              return;
+                            }
+
+                            if (!canSendMessages) {
+                              return;
+                            }
+
+                            effectiveSendMessage?.(event);
+                          }}
+                        />
+                      )}
+                    </ClientOnly>
+                  </div>
                   <div className="flex flex-wrap justify-between gap-3 text-sm p-4 pt-2">
                     <div className="flex flex-wrap items-center gap-3">
                       <TokenUsageSummary usage={tokenUsage} limit={tokenLimit} />
                       <IconButton
                         title="Enhance prompt"
-                        disabled={input.length === 0 || enhancingPrompt}
+                        disabled={input.length === 0 || enhancingPrompt || !canSendMessages}
                         className={classNames({
                           'opacity-100!': enhancingPrompt,
                           'text-bolt-elements-item-contentAccent! pr-1.5 enabled:hover:bg-bolt-elements-item-backgroundAccent!':
                             promptEnhanced,
                         })}
-                        onClick={() => enhancePrompt?.()}
+                        onClick={() => {
+                          if (!canSendMessages) {
+                            return;
+                          }
+
+                          enhancePrompt?.();
+                        }}
                       >
                         {enhancingPrompt ? (
                           <>
@@ -335,10 +384,11 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     return (
                       <button
                         key={index}
+                        disabled={!canSendMessages}
                         onClick={(event) => {
-                          sendMessage?.(event, examplePrompt.text);
+                          effectiveSendMessage?.(event, examplePrompt.text);
                         }}
-                        className="group flex items-center w-full gap-2 justify-center bg-transparent text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary transition-theme"
+                        className="group flex items-center w-full gap-2 justify-center bg-transparent text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary transition-theme disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {examplePrompt.text}
                         <div className="i-ph:arrow-bend-down-left" />
@@ -355,3 +405,53 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     );
   },
 );
+
+interface ContextLimitNoticeProps {
+  contextLimit: ContextLimitDetails;
+  onForkThread?: () => void;
+  forking?: boolean;
+}
+
+function ContextLimitNotice({ contextLimit, onForkThread, forking = false }: ContextLimitNoticeProps) {
+  const isBlocked = contextLimit.state === 'blocked';
+  const tokensUsed = `${formatTokens(contextLimit.promptTokens)} of ${formatTokens(contextLimit.limit)}`;
+  const message = isBlocked
+    ? `Figplit has reached the context window (${tokensUsed} prompt tokens). Fork this chat to continue with a fresh context.`
+    : `Figplit has used ${tokensUsed} prompt tokens. Start a new thread soon to avoid losing context.`;
+
+  return (
+    <div
+      className={classNames(
+        'flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm border-b border-bolt-elements-borderColor/60',
+        {
+          'bg-amber-500/10 text-amber-700 dark:text-amber-200': !isBlocked,
+          'bg-rose-500/10 text-rose-700 dark:text-rose-200': isBlocked,
+        },
+      )}
+    >
+      <p className="flex-1 font-medium leading-relaxed text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
+        {message}
+      </p>
+      {isBlocked && onForkThread ? (
+        <button
+          type="button"
+          onClick={onForkThread}
+          disabled={forking}
+          className="flex items-center gap-2 rounded-md border border-bolt-elements-borderColor/60 bg-bolt-elements-background-depth-1 px-3 py-1.5 text-sm font-semibold text-bolt-elements-textPrimary transition-theme hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/10 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {forking ? (
+            <>
+              <div className="i-svg-spinners:90-ring-with-bg text-bolt-elements-loader-progress text-base" />
+              Preparing fork…
+            </>
+          ) : (
+            <>
+              <div className="i-ph:git-branch-duotone text-base" />
+              Fork to new thread
+            </>
+          )}
+        </button>
+      ) : null}
+    </div>
+  );
+}

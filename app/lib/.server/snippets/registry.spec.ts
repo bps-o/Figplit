@@ -8,7 +8,7 @@ const glassSnippet = landingSnippetLibrary.find((snippet) => snippet.id === 'gla
 describe('findSnippetsInMessages', () => {
   it('detects snippets referenced by file path', () => {
     const messages: Messages = [
-      { role: 'user', content: 'Let\'s reuse /snippets/glass-hero-orbits.tsx and modernize the copy.' },
+      { role: 'user', content: "Let's reuse /snippets/glass-hero-orbits.tsx and modernize the copy." },
     ];
 
     const snippets = findSnippetsInMessages(messages);

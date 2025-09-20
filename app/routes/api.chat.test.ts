@@ -17,7 +17,6 @@ beforeEach(() => {
       close: vi.fn().mockResolvedValue(undefined),
     },
     toDataStreamResponse: () =>
-
       new Response(
         new ReadableStream({
           start(controller) {

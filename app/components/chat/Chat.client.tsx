@@ -2,7 +2,7 @@ import { useStore } from '@nanostores/react';
 import type { CompletionTokenUsage, Message } from 'ai';
 import { useChat } from 'ai/react';
 import { useAnimate } from 'framer-motion';
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { cssTransition, toast, ToastContainer } from 'react-toastify';
 import { useMessageParser, usePromptEnhancer, useShortcuts, useSnapScroll } from '~/lib/hooks';
 import { useChatHistory } from '~/lib/persistence';
@@ -14,6 +14,9 @@ import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
 import { BaseChat } from './BaseChat';
 import { createOnFinishHandler } from './chat-usage';
+import { buildForkSummary, evaluateContextLimit, type ContextLimitDetails } from './context-limit';
+import { formatTokens } from './token-usage';
+import { chatId, db, description, getNextId, setMessages } from '~/lib/persistence';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -78,6 +81,10 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
   const [animationScope, animate] = useAnimate();
 
   const [tokenUsage, setTokenUsage] = useState<CompletionTokenUsage | null>(null);
+  const [contextLimit, setContextLimit] = useState<ContextLimitDetails | null>(null);
+  const [forkingContext, setForkingContext] = useState(false);
+  const warningToastShown = useRef(false);
+  const blockedToastShown = useRef(false);
 
   const { messages, isLoading, input, handleInputChange, setInput, stop, append } = useChat({
     api: '/api/chat',
@@ -105,6 +112,40 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
       storeMessageHistory(messages).catch((error) => toast.error(error.message));
     }
   }, [messages, isLoading, parseMessages, initialMessages.length, storeMessageHistory]);
+
+  useEffect(() => {
+    if (!tokenUsage) {
+      return;
+    }
+
+    const evaluation = evaluateContextLimit(tokenUsage, MAX_TOKENS);
+
+    if (!evaluation) {
+      setContextLimit(null);
+      warningToastShown.current = false;
+      blockedToastShown.current = false;
+
+      return;
+    }
+
+    setContextLimit(evaluation);
+
+    if (evaluation.state === 'warn' && !warningToastShown.current) {
+      toast.warn(
+        `You're approaching Figplit's context window (${formatTokens(evaluation.promptTokens)} of ${formatTokens(evaluation.limit)} prompt tokens). Consider forking soon to keep replies grounded.`,
+      );
+
+      warningToastShown.current = true;
+    }
+
+    if (evaluation.state === 'blocked' && !blockedToastShown.current) {
+      toast.error(
+        `This thread reached the context window (${formatTokens(evaluation.promptTokens)} of ${formatTokens(evaluation.limit)} prompt tokens). Fork the chat to continue working with full context.`,
+      );
+
+      blockedToastShown.current = true;
+    }
+  }, [tokenUsage]);
 
   const scrollTextArea = () => {
     const textarea = textareaRef.current;
@@ -155,6 +196,13 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
       return;
     }
 
+    if (contextLimit?.state === 'blocked') {
+      toast.error(
+        'This thread cannot accept new prompts. Fork the conversation to continue working with full context.',
+      );
+      return;
+    }
+
     setTokenUsage(null);
 
     await workbenchStore.saveAllFiles();
@@ -183,6 +231,67 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
   };
 
   const [messageRef, scrollRef] = useSnapScroll();
+  const displayMessages = useMemo(() => {
+    return messages.map((message, index) => {
+      if (message.role === 'user') {
+        return message;
+      }
+
+      return {
+        ...message,
+        content: parsedMessages[index] || '',
+      };
+    });
+  }, [messages, parsedMessages]);
+
+  const handleForkThread = useCallback(async () => {
+    if (contextLimit?.state !== 'blocked') {
+      return;
+    }
+
+    if (!db) {
+      toast.error('Chat persistence is unavailable. Refresh to start a new thread.');
+      return;
+    }
+
+    setForkingContext(true);
+
+    try {
+      const previousChatId = chatId.get();
+      const artifactsStore = workbenchStore.artifacts.get();
+      const artifactSummaries = workbenchStore.artifactIdList
+        .map((messageId) => artifactsStore[messageId])
+        .filter((artifact): artifact is NonNullable<typeof artifact> => Boolean(artifact))
+        .map((artifact) => ({ id: artifact.id, title: artifact.title }));
+
+      const summary = buildForkSummary({
+        previousChatId,
+        limit: contextLimit.limit,
+        usage: tokenUsage,
+        artifacts: artifactSummaries,
+        messages: displayMessages,
+      });
+
+      const newChatId = await getNextId(db);
+      const summaryDescription = artifactSummaries.at(-1)?.title || `Fork of chat ${previousChatId ?? newChatId}`;
+      const summaryMessage: Message = {
+        id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `fork-${Date.now()}`,
+        role: 'assistant',
+        content: summary,
+      };
+
+      await setMessages(db, newChatId, [summaryMessage], newChatId, summaryDescription);
+
+      chatId.set(newChatId);
+      description.set(summaryDescription);
+
+      window.location.href = `/chat/${newChatId}`;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to fork the chat thread');
+    } finally {
+      setForkingContext(false);
+    }
+  }, [contextLimit, displayMessages, tokenUsage]);
 
   return (
     <BaseChat
@@ -200,18 +309,12 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
       scrollRef={scrollRef}
       handleInputChange={handleInputChange}
       handleStop={abort}
-      messages={messages.map((message, i) => {
-        if (message.role === 'user') {
-          return message;
-        }
-
-        return {
-          ...message,
-          content: parsedMessages[i] || '',
-        };
-      })}
+      messages={displayMessages}
       tokenUsage={tokenUsage}
       tokenLimit={MAX_TOKENS}
+      contextLimit={contextLimit}
+      onForkThread={handleForkThread}
+      forkingContext={forkingContext}
       enhancePrompt={() => {
         enhancePrompt(input, (input) => {
           setInput(input);
