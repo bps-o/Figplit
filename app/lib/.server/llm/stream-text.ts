@@ -25,11 +25,7 @@ export type StreamTextResult = Awaited<ReturnType<typeof _streamText>> & {
   streamData: StreamData;
 };
 
-export async function streamText(
-  messages: Messages,
-  env: Env,
-  options?: StreamingOptions,
-): Promise<StreamTextResult> {
+export async function streamText(messages: Messages, env: Env, options?: StreamingOptions): Promise<StreamTextResult> {
   const streamData = new StreamData();
 
   const result = await _streamText({

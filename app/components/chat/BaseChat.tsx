@@ -1,6 +1,5 @@
-
 import type { CompletionTokenUsage, Message } from 'ai';
-import React, { type RefCallback } from 'react';
+import React, { type RefCallback, useState } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { Menu } from '~/components/sidebar/Menu.client';
 import { IconButton } from '~/components/ui/IconButton';
@@ -134,7 +133,14 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-bolt-elements-textTertiary">
                       Featured snippet starters
                     </h2>
-                    <CustomSnippetDialog sendMessage={sendMessage} isStreaming={isStreaming} />
+                    <button
+                      type="button"
+                      onClick={() => setCustomSnippetOpen(true)}
+                      className="inline-flex items-center gap-2 rounded-full border border-bolt-elements-borderColor/60 bg-bolt-elements-background-depth-1/60 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.25em] text-bolt-elements-textSecondary transition-theme hover:border-bolt-elements-item-backgroundAccent hover:text-bolt-elements-textPrimary"
+                    >
+                      <span className="i-ph:magic-wand-duotone text-sm text-bolt-elements-item-contentAccent" />
+                      Custom lab
+                    </button>
                   </div>
                   <div className="mt-3 grid gap-3 md:grid-cols-3">
                     {FEATURED_SNIPPETS.map((snippet) => (

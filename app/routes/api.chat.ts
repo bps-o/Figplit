@@ -12,6 +12,34 @@ export async function action(args: ActionFunctionArgs) {
 
 const SNIPPET_CONTEXT_HEADING = 'Relevant snippet context:';
 
+type JsonValue = null | string | number | boolean | JsonValue[] | { [key: string]: JsonValue };
+
+interface SerializableSnippet {
+  id: string;
+  title: string;
+  description: string | null;
+  path: string;
+  filename: string;
+  bestFor: string[] | null;
+  prompt: string | null;
+  docblock: string[];
+  code: string;
+}
+
+function toSerializableSnippet(snippet: SnippetRecord): SerializableSnippet {
+  return {
+    id: snippet.id,
+    title: snippet.title,
+    description: snippet.description ?? null,
+    path: snippet.path,
+    filename: snippet.filename,
+    bestFor: snippet.bestFor ?? null,
+    prompt: snippet.prompt ?? null,
+    docblock: snippet.docblock,
+    code: snippet.code,
+  };
+}
+
 export async function chatAction({ context, request }: ActionFunctionArgs) {
   const { messages: incomingMessages } = await request.json<{ messages: Messages }>();
 
@@ -66,11 +94,13 @@ export async function chatAction({ context, request }: ActionFunctionArgs) {
 
           try {
             if (newSnippets.length > 0) {
-              result.streamData.append({
+              const suggestionPayload = {
                 type: 'snippet-suggestions',
-                snippets: newSnippets,
+                snippets: newSnippets.map(toSerializableSnippet),
                 segment: stream.switches,
-              });
+              };
+
+              result.streamData.append(suggestionPayload as unknown as JsonValue);
             }
 
             result.streamData.append({
@@ -169,10 +199,7 @@ function findLastUserMessageIndex(messages: Messages) {
   return -1;
 }
 
-function accumulateUsage(
-  previous: CompletionTokenUsage | null,
-  usage: CompletionTokenUsage,
-): CompletionTokenUsage {
+function accumulateUsage(previous: CompletionTokenUsage | null, usage: CompletionTokenUsage): CompletionTokenUsage {
   if (!previous) {
     return { ...usage };
   }
