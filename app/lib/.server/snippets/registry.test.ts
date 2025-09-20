@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  findSnippetsInText,
-  getSnippetByPath,
-  getSnippets,
-} from '~/lib/.server/snippets/registry';
+import { findSnippetsInText, getSnippetByPath, getSnippets } from '~/lib/.server/snippets/registry';
 
 describe('snippet registry', () => {
   it('exposes snippet metadata and code from the snippets directory', () => {
@@ -22,9 +18,6 @@ describe('snippet registry', () => {
       'Blend snippets/glass-hero-orbits.tsx with /snippets/metrics-marquee.tsx and ignore repeats like /snippets/metrics-marquee.tsx.',
     );
 
-    expect(snippets.map((snippet) => snippet.id)).toEqual([
-      'glass-hero-orbits',
-      'metrics-marquee',
-    ]);
+    expect(snippets.map((snippet) => snippet.id)).toEqual(['glass-hero-orbits', 'metrics-marquee']);
   });
 });
