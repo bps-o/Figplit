@@ -1,5 +1,6 @@
 import { useStore } from '@nanostores/react';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from 'react-resizable-panels';
 import {
   CodeMirrorEditor,
@@ -9,7 +10,6 @@ import {
   type OnSaveCallback as OnEditorSave,
   type OnScrollCallback as OnEditorScroll,
 } from '~/components/editor/codemirror/CodeMirrorEditor';
-import { IconButton } from '~/components/ui/IconButton';
 import { PanelHeader } from '~/components/ui/PanelHeader';
 import { PanelHeaderButton } from '~/components/ui/PanelHeaderButton';
 import { shortcutEventEmitter } from '~/lib/hooks';
@@ -64,9 +64,12 @@ export const EditorPanel = memo(
     const terminalRefs = useRef<Array<TerminalRef | null>>([]);
     const terminalPanelRef = useRef<ImperativePanelHandle>(null);
     const terminalToggledByShortcut = useRef(false);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     const [activeTerminal, setActiveTerminal] = useState(0);
     const [terminalCount, setTerminalCount] = useState(1);
+    const [isUploadingAssets, setIsUploadingAssets] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
 
     const activeFileSegments = useMemo(() => {
       if (!editorDocument) {
@@ -79,6 +82,36 @@ export const EditorPanel = memo(
     const activeFileUnsaved = useMemo(() => {
       return editorDocument !== undefined && unsavedFiles?.has(editorDocument.filePath);
     }, [editorDocument, unsavedFiles]);
+
+    const uploadDirectory = useMemo(() => {
+      if (!selectedFile) {
+        return `${WORK_DIR}/public`;
+      }
+
+      const selectedDirent = files?.[selectedFile];
+
+      if (selectedDirent?.type === 'folder') {
+        return selectedFile;
+      }
+
+      const lastSlashIndex = selectedFile.lastIndexOf('/');
+
+      if (lastSlashIndex === -1) {
+        return WORK_DIR;
+      }
+
+      return selectedFile.slice(0, lastSlashIndex);
+    }, [files, selectedFile]);
+
+    const uploadDirectoryLabel = useMemo(() => {
+      if (!uploadDirectory.startsWith(WORK_DIR)) {
+        return uploadDirectory;
+      }
+
+      const relative = uploadDirectory.slice(WORK_DIR.length).replace(/^\/+/, '');
+
+      return relative || '/';
+    }, [uploadDirectory]);
 
     useEffect(() => {
       const unsubscribeFromEventEmitter = shortcutEventEmitter.on('toggleTerminal', () => {
@@ -122,16 +155,81 @@ export const EditorPanel = memo(
       }
     };
 
+    const openUploadDialog = useCallback(() => {
+      fileInputRef.current?.click();
+    }, []);
+
+    const handleAssetSelection = useCallback(
+      async (event: ChangeEvent<HTMLInputElement>) => {
+        const filesToUpload = event.target.files;
+
+        if (!filesToUpload || filesToUpload.length === 0) {
+          return;
+        }
+
+        setUploadError(null);
+        setIsUploadingAssets(true);
+
+        try {
+          await workbenchStore.uploadAssets(uploadDirectory, Array.from(filesToUpload));
+        } catch (error) {
+          console.error('Failed to upload assets', error);
+
+          const message = error instanceof Error ? error.message : 'Failed to upload assets. Please try again.';
+          setUploadError(message);
+        } finally {
+          setIsUploadingAssets(false);
+
+          if (event.target) {
+            event.target.value = '';
+          }
+        }
+      },
+      [uploadDirectory],
+    );
+
     return (
       <PanelGroup direction="vertical">
         <Panel defaultSize={showTerminal ? DEFAULT_EDITOR_SIZE : 100} minSize={20}>
           <PanelGroup direction="horizontal">
             <Panel defaultSize={20} minSize={10} collapsible>
               <div className="flex flex-col border-r border-bolt-elements-borderColor h-full">
-                <PanelHeader>
-                  <div className="i-ph:tree-structure-duotone shrink-0" />
-                  Files
+                <PanelHeader className="justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="i-ph:tree-structure-duotone shrink-0" />
+                    Files
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="hidden text-xs text-bolt-elements-textTertiary md:inline-flex">
+                      Upload to{' '}
+                      <span className="font-medium text-bolt-elements-textSecondary ml-1">{uploadDirectoryLabel}</span>
+                    </span>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*,video/*"
+                      multiple
+                      className="hidden"
+                      onChange={handleAssetSelection}
+                    />
+                    <PanelHeaderButton disabled={isUploadingAssets} onClick={openUploadDialog}>
+                      <div
+                        className={classNames(
+                          isUploadingAssets ? 'i-ph:circle-notch-duotone animate-spin' : 'i-ph:cloud-arrow-up-duotone',
+                        )}
+                      />
+                      Upload
+                    </PanelHeaderButton>
+                  </div>
                 </PanelHeader>
+                {uploadError && (
+                  <div
+                    className="px-4 py-2 text-xs text-red-500 border-b border-bolt-elements-borderColor bg-bolt-elements-background-depth-1"
+                    role="status"
+                  >
+                    {uploadError}
+                  </div>
+                )}
                 <FileTree
                   className="h-full"
                   files={files}

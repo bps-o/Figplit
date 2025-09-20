@@ -210,6 +210,35 @@ export class WorkbenchStore {
     this.#filesStore.resetFileModifications();
   }
 
+  async uploadAssets(targetDirectory: string, files: File[]) {
+    const fileList = Array.from(files).filter((file) => file.size > 0);
+
+    if (fileList.length === 0) {
+      return;
+    }
+
+    const webcontainerInstance = await webcontainer;
+
+    const uploadRoot = normalizeDirectory(targetDirectory, webcontainerInstance.workdir);
+    const relativeDirectory = getRelativeDirectory(uploadRoot, webcontainerInstance.workdir);
+
+    if (relativeDirectory) {
+      await webcontainerInstance.fs.mkdir(relativeDirectory, { recursive: true });
+    }
+
+    await Promise.all(
+      fileList.map(async (file) => {
+        const fileBuffer = new Uint8Array(await file.arrayBuffer());
+        const filePath = relativeDirectory ? `${relativeDirectory}/${file.name}` : file.name;
+
+        await webcontainerInstance.fs.writeFile(filePath, fileBuffer);
+      }),
+    );
+
+    // ensure we always display the workbench when new assets are uploaded
+    this.showWorkbench.set(true);
+  }
+
   abortAllActions() {
     // TODO: what do we wanna do and how do we wanna recover from this?
   }
@@ -274,3 +303,26 @@ export class WorkbenchStore {
 }
 
 export const workbenchStore = new WorkbenchStore();
+
+function normalizeDirectory(directory: string, workdir: string) {
+  const trimmedDirectory = directory.replace(/\/+$/g, '');
+  const normalizedWorkdir = workdir.replace(/\/+$/g, '');
+
+  if (!trimmedDirectory) {
+    return normalizedWorkdir;
+  }
+
+  if (!trimmedDirectory.startsWith(normalizedWorkdir)) {
+    throw new Error('Upload path must stay within the project directory.');
+  }
+
+  return trimmedDirectory;
+}
+
+function getRelativeDirectory(directory: string, workdir: string) {
+  if (!directory || directory === workdir) {
+    return '';
+  }
+
+  return directory.slice(workdir.length).replace(/^\/+/, '');
+}
