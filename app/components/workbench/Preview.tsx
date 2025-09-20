@@ -3,6 +3,64 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { IconButton } from '~/components/ui/IconButton';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { PortDropdown } from './PortDropdown';
+import {
+  beginPreviewNavigation,
+  completePreviewNavigation,
+  recordPreviewAnimationTimeline,
+  recordPreviewPerformanceMetrics,
+  type PreviewAnimationSample,
+  type PreviewPerformanceMetrics,
+} from '~/lib/stores/preview-telemetry';
+
+type PreviewTelemetryMessage =
+  | {
+      source: 'figplit-preview';
+      type: 'preview:ready';
+      navigationId?: number;
+      timestamp?: number;
+      url?: string;
+    }
+  | {
+      source: 'figplit-preview';
+      type: 'preview:performance';
+      navigationId?: number;
+      timestamp?: number;
+      metrics: PreviewPerformanceMetrics;
+    }
+  | {
+      source: 'figplit-preview';
+      type: 'preview:animation-timeline';
+      navigationId?: number;
+      timestamp?: number;
+      timeline: PreviewAnimationSample[];
+    };
+
+function isPreviewTelemetryMessage(data: unknown): data is PreviewTelemetryMessage {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+
+  const base = data as Record<string, unknown>;
+
+  if (base.source !== 'figplit-preview' || typeof base.type !== 'string') {
+    return false;
+  }
+
+  if (base.type === 'preview:performance') {
+    return typeof base.metrics === 'object' && base.metrics !== null;
+  }
+
+  if (base.type === 'preview:animation-timeline') {
+    return Array.isArray(base.timeline);
+  }
+
+  return true;
+}
+
+const getRelativeTimestamp = () => {
+  const hasHighResolutionTimer = typeof performance !== 'undefined' && typeof performance.now === 'function';
+  return hasHighResolutionTimer ? performance.now() : Date.now();
+};
 
 export const Preview = memo(() => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -12,14 +70,18 @@ export const Preview = memo(() => {
   const hasSelectedPreview = useRef(false);
   const previews = useStore(workbenchStore.previews);
   const activePreview = previews[activePreviewIndex];
+  const activePort = activePreview?.port;
 
   const [url, setUrl] = useState('');
   const [iframeUrl, setIframeUrl] = useState<string | undefined>();
+  const navigationCounterRef = useRef(0);
+  const lastNavigationIdRef = useRef<number | undefined>();
 
   useEffect(() => {
     if (!activePreview) {
       setUrl('');
       setIframeUrl(undefined);
+      lastNavigationIdRef.current = undefined;
 
       return;
     }
@@ -28,7 +90,38 @@ export const Preview = memo(() => {
 
     setUrl(baseUrl);
     setIframeUrl(baseUrl);
-  }, [activePreview, iframeUrl]);
+  }, [activePreview]);
+
+  useEffect(() => {
+    navigationCounterRef.current = 0;
+    lastNavigationIdRef.current = undefined;
+  }, [activePort]);
+
+  const startNavigation = useCallback(
+    (nextUrl?: string) => {
+      if (activePort === undefined || !nextUrl) {
+        return;
+      }
+
+      const navigationId = navigationCounterRef.current + 1;
+      navigationCounterRef.current = navigationId;
+      lastNavigationIdRef.current = navigationId;
+
+      beginPreviewNavigation({
+        port: activePort,
+        navigationId,
+        url: nextUrl,
+        startedAt: getRelativeTimestamp(),
+      });
+    },
+    [activePort],
+  );
+
+  useEffect(() => {
+    if (iframeUrl) {
+      startNavigation(iframeUrl);
+    }
+  }, [iframeUrl, startNavigation]);
 
   const validateUrl = useCallback(
     (value: string) => {
@@ -65,11 +158,86 @@ export const Preview = memo(() => {
     }
   }, [previews]);
 
-  const reloadPreview = () => {
+  const reloadPreview = useCallback(() => {
     if (iframeRef.current) {
-      iframeRef.current.src = iframeRef.current.src;
+      const currentSrc = iframeRef.current.src;
+
+      startNavigation(currentSrc);
+      iframeRef.current.src = currentSrc;
     }
-  };
+  }, [startNavigation]);
+
+  const handleIframeLoad = useCallback(() => {
+    if (activePort === undefined || lastNavigationIdRef.current === undefined) {
+      return;
+    }
+
+    completePreviewNavigation({
+      port: activePort,
+      navigationId: lastNavigationIdRef.current,
+      completedAt: getRelativeTimestamp(),
+    });
+  }, [activePort]);
+
+  useEffect(() => {
+    if (activePort === undefined) {
+      return undefined;
+    }
+
+    const handleMessage = (event: MessageEvent<unknown>) => {
+      if (event.source !== iframeRef.current?.contentWindow) {
+        return;
+      }
+
+      if (!isPreviewTelemetryMessage(event.data)) {
+        return;
+      }
+
+      const navigationId = event.data.navigationId ?? lastNavigationIdRef.current;
+
+      if (navigationId === undefined) {
+        return;
+      }
+
+      const timestamp = typeof event.data.timestamp === 'number' ? event.data.timestamp : getRelativeTimestamp();
+
+      switch (event.data.type) {
+        case 'preview:ready': {
+          completePreviewNavigation({
+            port: activePort,
+            navigationId,
+            completedAt: timestamp,
+            markReady: true,
+          });
+          break;
+        }
+        case 'preview:performance': {
+          recordPreviewPerformanceMetrics({
+            port: activePort,
+            navigationId,
+            metrics: event.data.metrics,
+            recordedAt: timestamp,
+          });
+          break;
+        }
+        case 'preview:animation-timeline': {
+          recordPreviewAnimationTimeline({
+            port: activePort,
+            navigationId,
+            timeline: event.data.timeline,
+            recordedAt: timestamp,
+          });
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [activePort]);
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -114,7 +282,12 @@ export const Preview = memo(() => {
       </div>
       <div className="flex-1 border-t border-bolt-elements-borderColor">
         {activePreview ? (
-          <iframe ref={iframeRef} className="border-none w-full h-full bg-white" src={iframeUrl} />
+          <iframe
+            ref={iframeRef}
+            className="border-none w-full h-full bg-white"
+            src={iframeUrl}
+            onLoad={handleIframeLoad}
+          />
         ) : (
           <div className="flex w-full h-full justify-center items-center bg-white">No preview available</div>
         )}

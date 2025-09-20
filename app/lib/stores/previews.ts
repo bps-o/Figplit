@@ -1,5 +1,6 @@
 import type { WebContainer } from '@webcontainer/api';
 import { atom } from 'nanostores';
+import { removePreviewTelemetry, resetPreviewTelemetry } from './preview-telemetry';
 
 export interface PreviewInfo {
   port: number;
@@ -29,6 +30,8 @@ export class PreviewsStore {
         this.#availablePreviews.delete(port);
         this.previews.set(this.previews.get().filter((preview) => preview.port !== port));
 
+        removePreviewTelemetry(port);
+
         return;
       }
 
@@ -44,6 +47,10 @@ export class PreviewsStore {
       previewInfo.baseUrl = url;
 
       this.previews.set([...previews]);
+
+      if (type === 'open') {
+        resetPreviewTelemetry(port);
+      }
     });
   }
 }
