@@ -10,6 +10,7 @@ import { Messages } from './Messages.client';
 import { SendButton } from './SendButton.client';
 import { CustomSnippetDialog } from './CustomSnippetDialog';
 import { TokenUsageSummary } from './TokenUsageSummary';
+import type { SnippetSuggestion } from './types';
 
 import styles from './BaseChat.module.scss';
 
@@ -27,6 +28,7 @@ interface BaseChatProps {
   input?: string;
   tokenUsage?: CompletionTokenUsage | null;
   tokenLimit?: number;
+  snippetSuggestions?: SnippetSuggestion[];
   handleStop?: () => void;
   sendMessage?: (event: React.UIEvent, messageInput?: string) => void;
   handleInputChange?: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
@@ -80,6 +82,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       input = '',
       tokenUsage = null,
       tokenLimit,
+      snippetSuggestions = [],
       sendMessage,
       handleInputChange,
       enhancePrompt,
@@ -207,6 +210,42 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   ) : null;
                 }}
               </ClientOnly>
+              {chatStarted && snippetSuggestions.length > 0 ? (
+                <div className="mx-auto mt-4 w-full max-w-chat px-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-bolt-elements-textTertiary">
+                    Live snippet suggestions
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {snippetSuggestions.map((snippet) => {
+                      const fallbackPrompt = `Let's integrate the snippet at ${snippet.path} (${snippet.title}).`;
+
+                      return (
+                        <button
+                          key={`live-suggestion-${snippet.id}`}
+                          type="button"
+                          disabled={isStreaming}
+                          onClick={(event) => {
+                            sendMessage?.(event, snippet.prompt ?? fallbackPrompt);
+                          }}
+                          className={classNames(
+                            'group flex min-w-[180px] flex-col items-start gap-1 rounded-lg border border-bolt-elements-borderColor/60 bg-bolt-elements-background-depth-1/80 px-3 py-2 text-left transition-theme',
+                            isStreaming
+                              ? 'opacity-60 cursor-not-allowed'
+                              : 'hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/10',
+                          )}
+                        >
+                          <span className="text-sm font-semibold text-bolt-elements-textPrimary group-hover:text-bolt-elements-item-contentAccent">
+                            {snippet.title}
+                          </span>
+                          <span className="text-[11px] text-bolt-elements-textSecondary leading-snug">
+                            {snippet.description ?? snippet.path}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
               {chatStarted ? (
                 <div className="mx-auto mt-4 w-full max-w-chat px-4">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-bolt-elements-textTertiary">
