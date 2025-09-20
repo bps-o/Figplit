@@ -8,11 +8,12 @@ interface MessagesProps {
   id?: string;
   className?: string;
   isStreaming?: boolean;
+  aborted?: boolean;
   messages?: Message[];
 }
 
 export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: MessagesProps, ref) => {
-  const { id, isStreaming = false, messages = [] } = props;
+  const { id, isStreaming = false, aborted = false, messages = [] } = props;
 
   return (
     <div id={id} ref={ref} className={props.className}>
@@ -47,6 +48,12 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
         : null}
       {isStreaming && (
         <div className="text-center w-full text-bolt-elements-textSecondary i-svg-spinners:3-dots-fade text-4xl mt-4"></div>
+      )}
+      {!isStreaming && aborted && (
+        <div className="flex items-center justify-center gap-2 text-bolt-elements-textSecondary text-sm mt-4">
+          <div className="i-ph:hand-palm"></div>
+          Generation stopped.
+        </div>
       )}
     </div>
   );
