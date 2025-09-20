@@ -8,6 +8,7 @@ import { landingSnippetLibrary } from '~/lib/snippets/landing-snippets';
 import { classNames } from '~/utils/classNames';
 import { Messages } from './Messages.client';
 import { SendButton } from './SendButton.client';
+import { CustomSnippetDialog } from './CustomSnippetDialog';
 import { TokenUsageSummary } from './TokenUsageSummary';
 
 import styles from './BaseChat.module.scss';
@@ -123,9 +124,12 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   ))}
                 </div>
                 <div className="mt-10 text-left">
-                  <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-bolt-elements-textTertiary">
-                    Featured snippet starters
-                  </h2>
+                  <div className="flex items-center justify-between gap-4">
+                    <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-bolt-elements-textTertiary">
+                      Featured snippet starters
+                    </h2>
+                    <CustomSnippetDialog sendMessage={sendMessage} isStreaming={isStreaming} />
+                  </div>
                   <div className="mt-3 grid gap-3 md:grid-cols-3">
                     {FEATURED_SNIPPETS.map((snippet) => (
                       <button
