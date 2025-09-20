@@ -1,5 +1,5 @@
 import type { CompletionTokenUsage, Message } from 'ai';
-import React, { type RefCallback, useState } from 'react';
+import React, { useState, type RefCallback } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { Menu } from '~/components/sidebar/Menu.client';
 import { IconButton } from '~/components/ui/IconButton';
