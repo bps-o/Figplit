@@ -38,6 +38,14 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
         >
           <div className="i-ph:brackets-curly-duotone text-base" />
         </Button>
+        <div className="w-[1px] bg-bolt-elements-borderColor" />
+        <Button
+          onClick={() => {
+            workbenchStore.setDeployDialogOpen(true);
+          }}
+        >
+          <div className="i-ph:rocket-launch-duotone text-base" />
+        </Button>
       </div>
     </div>
   );

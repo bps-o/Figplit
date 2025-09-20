@@ -5,6 +5,12 @@ import type { ActionCallbackData, ArtifactCallbackData } from '~/lib/runtime/mes
 import { webcontainer } from '~/lib/webcontainer';
 import type { ITerminal } from '~/types/terminal';
 import { unreachable } from '~/utils/unreachable';
+import {
+  normalizeExternalDeploymentPayload,
+  shouldPollDeploymentStatus,
+  type NormalizedDeploymentResponse,
+  type NormalizedDeploymentStatus,
+} from '~/utils/deployment';
 import { EditorStore } from './editor';
 import { FilesStore, type FileMap } from './files';
 import { PreviewsStore } from './previews';
@@ -23,17 +29,41 @@ type Artifacts = MapStore<Record<string, ArtifactState>>;
 
 export type WorkbenchViewType = 'code' | 'preview';
 
+export type DeploymentStatus = 'idle' | 'triggering' | 'queued' | 'building' | 'success' | 'error';
+
+export interface DeploymentState {
+  status: DeploymentStatus;
+  deploymentId?: string;
+  previewUrl?: string;
+  error?: string;
+  updatedAt: number;
+}
+
+const DEPLOYMENT_POLL_INTERVAL = 5000;
+
+function createInitialDeploymentState(): DeploymentState {
+  return {
+    status: 'idle',
+    updatedAt: Date.now(),
+  };
+}
+
 export class WorkbenchStore {
   #previewsStore = new PreviewsStore(webcontainer);
   #filesStore = new FilesStore(webcontainer);
   #editorStore = new EditorStore(this.#filesStore);
   #terminalStore = new TerminalStore(webcontainer);
+  #deploymentPollTimeout?: ReturnType<typeof setTimeout>;
+  #deploymentPollController?: AbortController;
 
   artifacts: Artifacts = import.meta.hot?.data.artifacts ?? map({});
 
   showWorkbench: WritableAtom<boolean> = import.meta.hot?.data.showWorkbench ?? atom(false);
   currentView: WritableAtom<WorkbenchViewType> = import.meta.hot?.data.currentView ?? atom('code');
   unsavedFiles: WritableAtom<Set<string>> = import.meta.hot?.data.unsavedFiles ?? atom(new Set<string>());
+  deployDialogOpen: WritableAtom<boolean> = import.meta.hot?.data.deployDialogOpen ?? atom(false);
+  deploymentState: WritableAtom<DeploymentState> =
+    import.meta.hot?.data.deploymentState ?? atom(createInitialDeploymentState());
   modifiedFiles = new Set<string>();
   artifactIdList: string[] = [];
 
@@ -43,6 +73,8 @@ export class WorkbenchStore {
       import.meta.hot.data.unsavedFiles = this.unsavedFiles;
       import.meta.hot.data.showWorkbench = this.showWorkbench;
       import.meta.hot.data.currentView = this.currentView;
+      import.meta.hot.data.deployDialogOpen = this.deployDialogOpen;
+      import.meta.hot.data.deploymentState = this.deploymentState;
     }
   }
 
@@ -102,6 +134,138 @@ export class WorkbenchStore {
 
   setShowWorkbench(show: boolean) {
     this.showWorkbench.set(show);
+  }
+
+  setDeployDialogOpen(open: boolean) {
+    this.deployDialogOpen.set(open);
+  }
+
+  resetDeploymentState() {
+    this.cancelDeploymentPolling();
+    this.deploymentState.set(createInitialDeploymentState());
+  }
+
+  dismissDeployment() {
+    this.resetDeploymentState();
+  }
+
+  cancelDeploymentPolling() {
+    if (this.#deploymentPollTimeout) {
+      clearTimeout(this.#deploymentPollTimeout);
+      this.#deploymentPollTimeout = undefined;
+    }
+
+    if (this.#deploymentPollController) {
+      this.#deploymentPollController.abort();
+      this.#deploymentPollController = undefined;
+    }
+  }
+
+  resumeDeploymentPolling() {
+    const state = this.deploymentState.get();
+
+    if (!state.deploymentId) {
+      return;
+    }
+
+    if (!shouldPollDeploymentStatus(toNormalizedDeploymentStatus(state.status))) {
+      return;
+    }
+
+    if (this.#deploymentPollTimeout) {
+      return;
+    }
+
+    this.#scheduleDeploymentPoll(0);
+  }
+
+  async requestDeployment() {
+    this.cancelDeploymentPolling();
+
+    this.deploymentState.set({
+      status: 'triggering',
+      deploymentId: undefined,
+      previewUrl: undefined,
+      error: undefined,
+      updatedAt: Date.now(),
+    });
+
+    try {
+      const response = await fetch('/api/deploy', { method: 'POST' });
+
+      if (!response.ok) {
+        const message = await safeReadText(response);
+        throw new Error(message || `Deployment request failed (${response.status})`);
+      }
+
+      const payload = (await safeReadJson(response)) as NormalizedDeploymentResponse;
+      const previousState = this.deploymentState.get();
+      const nextState = this.#normalizeDeploymentState(payload, previousState);
+
+      this.deploymentState.set(nextState);
+      this.deployDialogOpen.set(false);
+
+      if (shouldPollDeploymentStatus(toNormalizedDeploymentStatus(nextState.status))) {
+        this.#scheduleDeploymentPoll();
+      }
+
+      return nextState;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to start deployment';
+
+      this.deploymentState.set({
+        status: 'error',
+        error: message,
+        updatedAt: Date.now(),
+      });
+
+      throw error;
+    }
+  }
+
+  async pollDeploymentStatus(signal?: AbortSignal) {
+    const state = this.deploymentState.get();
+    const deploymentId = state.deploymentId;
+
+    if (!deploymentId) {
+      this.cancelDeploymentPolling();
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/deploy?deploymentId=${encodeURIComponent(deploymentId)}`, { signal });
+
+      if (!response.ok) {
+        const message = await safeReadText(response);
+        throw new Error(message || `Failed to poll deployment status (${response.status})`);
+      }
+
+      const payload = (await safeReadJson(response)) as NormalizedDeploymentResponse;
+      const nextState = this.#normalizeDeploymentState(payload, state);
+
+      this.deploymentState.set(nextState);
+
+      if (shouldPollDeploymentStatus(toNormalizedDeploymentStatus(nextState.status))) {
+        this.#scheduleDeploymentPoll();
+      } else {
+        this.cancelDeploymentPolling();
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : 'Failed to poll deployment status';
+
+      this.deploymentState.set({
+        ...state,
+        status: 'error',
+        error: message,
+        updatedAt: Date.now(),
+      });
+
+      this.cancelDeploymentPolling();
+    }
   }
 
   setCurrentDocumentContent(newContent: string) {
@@ -271,6 +435,86 @@ export class WorkbenchStore {
     const artifacts = this.artifacts.get();
     return artifacts[id];
   }
+
+  #scheduleDeploymentPoll(delay = DEPLOYMENT_POLL_INTERVAL) {
+    this.cancelDeploymentPolling();
+
+    const controller = new AbortController();
+
+    this.#deploymentPollController = controller;
+    this.#deploymentPollTimeout = setTimeout(() => {
+      this.pollDeploymentStatus(controller.signal).catch(() => {
+        // polling errors are handled in pollDeploymentStatus
+      });
+    }, delay);
+  }
+
+  #normalizeDeploymentState(response: NormalizedDeploymentResponse, previous: DeploymentState): DeploymentState {
+    const normalized = normalizeExternalDeploymentPayload(response);
+    const status = resolveDeploymentStatus(normalized.status, previous.status);
+
+    return {
+      status,
+      deploymentId: normalized.deploymentId ?? previous.deploymentId,
+      previewUrl: normalized.previewUrl ?? previous.previewUrl,
+      error: normalized.error,
+      updatedAt: Date.now(),
+    };
+  }
 }
 
 export const workbenchStore = new WorkbenchStore();
+
+async function safeReadJson(response: Response) {
+  const contentType = response.headers.get('content-type');
+
+  if (contentType && contentType.toLowerCase().includes('application/json')) {
+    return response.json().catch(() => ({}));
+  }
+
+  const text = await response.text();
+
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function safeReadText(response: Response) {
+  try {
+    return await response.text();
+  } catch {
+    return '';
+  }
+}
+
+function resolveDeploymentStatus(
+  status: DeploymentStatus | NormalizedDeploymentStatus | undefined,
+  previous: DeploymentStatus,
+): DeploymentStatus {
+  if (status === undefined || status === null) {
+    return previous === 'triggering' ? 'queued' : previous;
+  }
+
+  if (
+    status === 'idle' ||
+    status === 'triggering' ||
+    status === 'queued' ||
+    status === 'building' ||
+    status === 'success' ||
+    status === 'error'
+  ) {
+    return status;
+  }
+
+  return previous === 'triggering' ? 'queued' : previous;
+}
+
+function toNormalizedDeploymentStatus(status: DeploymentStatus | undefined): NormalizedDeploymentStatus | undefined {
+  if (status === 'queued' || status === 'building' || status === 'success' || status === 'error') {
+    return status;
+  }
+
+  return undefined;
+}
