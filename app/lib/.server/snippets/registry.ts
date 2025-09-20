@@ -98,7 +98,12 @@ function extractDocblockLines(source: string): string[] {
 
   return match[1]
     .split('\n')
-    .map((line) => line.trim().replace(/^\*\s?/, '').trim())
+    .map((line) =>
+      line
+        .trim()
+        .replace(/^\*\s?/, '')
+        .trim(),
+    )
     .filter((line) => line.length > 0);
 }
 

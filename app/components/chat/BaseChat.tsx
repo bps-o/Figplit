@@ -1,5 +1,5 @@
 import type { Message } from 'ai';
-import React, { type RefCallback } from 'react';
+import React, { useState, type RefCallback } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { Menu } from '~/components/sidebar/Menu.client';
 import { IconButton } from '~/components/ui/IconButton';
@@ -8,6 +8,7 @@ import { landingSnippetLibrary } from '~/lib/snippets/landing-snippets';
 import { classNames } from '~/utils/classNames';
 import { Messages } from './Messages.client';
 import { SendButton } from './SendButton.client';
+import { CustomSnippetDialog } from './CustomSnippetDialog';
 
 import styles from './BaseChat.module.scss';
 
@@ -82,6 +83,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     ref,
   ) => {
     const TEXTAREA_MAX_HEIGHT = chatStarted ? 400 : 200;
+    const [customSnippetOpen, setCustomSnippetOpen] = useState(false);
 
     return (
       <div
@@ -92,6 +94,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         )}
         data-chat-visible={showChat}
       >
+        <CustomSnippetDialog open={customSnippetOpen} onOpenChange={setCustomSnippetOpen} sendMessage={sendMessage} />
         <ClientOnly>{() => <Menu />}</ClientOnly>
         <div ref={scrollRef} className="flex overflow-y-auto w-full h-full">
           <div className={classNames(styles.Chat, 'flex flex-col flex-grow min-w-[var(--chat-min-width)] h-full')}>
@@ -146,6 +149,23 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         </div>
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      onClick={() => setCustomSnippetOpen(true)}
+                      className="group flex flex-col items-start gap-2 rounded-xl border border-dashed border-bolt-elements-borderColor/80 bg-bolt-elements-background-depth-1/40 p-4 text-left transition-theme hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/10"
+                    >
+                      <div className="flex items-center gap-2 text-sm font-semibold text-bolt-elements-textPrimary">
+                        <div className="i-ph:magic-wand-duotone text-base text-bolt-elements-item-contentAccent group-hover:text-bolt-elements-item-contentAccent" />
+                        Custom animation lab
+                      </div>
+                      <p className="text-sm text-bolt-elements-textSecondary leading-relaxed">
+                        Compose a bespoke motion snippet with Figplit and stage it for a specific section before
+                        merging.
+                      </p>
+                      <div className="text-xs uppercase tracking-[0.2em] text-bolt-elements-textTertiary">
+                        Targeted handoff
+                      </div>
+                    </button>
                   </div>
                   <p className="mt-3 text-xs text-bolt-elements-textTertiary">
                     These live under <code className="font-semibold">/snippets</code>. Ask Figplit to remix them or{' '}
@@ -197,6 +217,18 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         ) : null}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      onClick={() => setCustomSnippetOpen(true)}
+                      className="group flex min-w-[180px] flex-col items-start gap-1 rounded-lg border border-dashed border-bolt-elements-borderColor/80 bg-bolt-elements-background-depth-1/40 px-3 py-2 text-left transition-theme hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/10"
+                    >
+                      <span className="text-sm font-semibold text-bolt-elements-textPrimary group-hover:text-bolt-elements-item-contentAccent">
+                        Custom animation lab
+                      </span>
+                      <span className="text-[11px] uppercase tracking-[0.2em] text-bolt-elements-textTertiary">
+                        Scoped deployment
+                      </span>
+                    </button>
                   </div>
                 </div>
               ) : null}
