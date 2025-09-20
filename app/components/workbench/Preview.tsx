@@ -3,6 +3,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { IconButton } from '~/components/ui/IconButton';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { PortDropdown } from './PortDropdown';
+import { PreviewTelemetryPanel } from './PreviewTelemetryPanel';
 import {
   beginPreviewNavigation,
   completePreviewNavigation,
@@ -280,17 +281,20 @@ export const Preview = memo(() => {
           />
         )}
       </div>
-      <div className="flex-1 border-t border-bolt-elements-borderColor">
-        {activePreview ? (
-          <iframe
-            ref={iframeRef}
-            className="border-none w-full h-full bg-white"
-            src={iframeUrl}
-            onLoad={handleIframeLoad}
-          />
-        ) : (
-          <div className="flex w-full h-full justify-center items-center bg-white">No preview available</div>
-        )}
+      <div className="flex-1 border-t border-bolt-elements-borderColor flex flex-col overflow-hidden">
+        <PreviewTelemetryPanel port={activePort} />
+        <div className="flex-1">
+          {activePreview ? (
+            <iframe
+              ref={iframeRef}
+              className="border-none w-full h-full bg-white"
+              src={iframeUrl}
+              onLoad={handleIframeLoad}
+            />
+          ) : (
+            <div className="flex w-full h-full justify-center items-center bg-white">No preview available</div>
+          )}
+        </div>
       </div>
     </div>
   );
