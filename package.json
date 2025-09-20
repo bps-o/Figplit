@@ -1,6 +1,6 @@
 {
-  "name": "bolt",
-  "description": "StackBlitz AI Agent",
+  "name": "figplit",
+  "description": "AI vibe-coding agent for landing pages",
   "private": true,
   "license": "MIT",
   "packageManager": "pnpm@9.4.0",

@@ -18,10 +18,17 @@ export function Header() {
         },
       )}
     >
-      <div className="flex items-center gap-2 z-logo text-bolt-elements-textPrimary cursor-pointer">
-        <div className="i-ph:sidebar-simple-duotone text-xl" />
-        <a href="/" className="text-2xl font-semibold text-accent flex items-center">
-          <span className="i-bolt:logo-text?mask w-[46px] inline-block" />
+      <div className="flex items-center gap-3 z-logo text-bolt-elements-textPrimary">
+        <a href="/" className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-purple-500/80 via-fuchsia-500/80 to-amber-400/80 text-white shadow-sm">
+            <div className="i-ph:sparkle-duotone text-xl" />
+          </div>
+          <div className="flex flex-col leading-tight">
+            <span className="text-2xl font-semibold text-bolt-elements-textPrimary">Figplit</span>
+            <span className="text-xs font-medium uppercase tracking-[0.24em] text-bolt-elements-textSecondary">
+              Landing page studio
+            </span>
+          </div>
         </a>
       </div>
       <span className="flex-1 px-4 truncate text-center text-bolt-elements-textPrimary">

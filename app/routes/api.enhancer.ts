@@ -19,7 +19,9 @@ async function enhancerAction({ context, request }: ActionFunctionArgs) {
         {
           role: 'user',
           content: stripIndents`
-          I want you to improve the user prompt that is wrapped in \`<original_prompt>\` tags.
+          I want you to improve the user prompt that is wrapped in \`<original_prompt>\` tags with the goal of crafting a world-class landing page experience.
+
+          Encourage the user to specify brand vibe, target audience, desired layout sections, motion/animation intentions, asset needs, and any snippets from /snippets that could accelerate the build.
 
           IMPORTANT: Only respond with the improved prompt and nothing else!
 

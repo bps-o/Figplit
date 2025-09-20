@@ -4,6 +4,7 @@ import { ClientOnly } from 'remix-utils/client-only';
 import { Menu } from '~/components/sidebar/Menu.client';
 import { IconButton } from '~/components/ui/IconButton';
 import { Workbench } from '~/components/workbench/Workbench.client';
+import { landingSnippetLibrary } from '~/lib/snippets/landing-snippets';
 import { classNames } from '~/utils/classNames';
 import { Messages } from './Messages.client';
 import { SendButton } from './SendButton.client';
@@ -28,12 +29,32 @@ interface BaseChatProps {
 }
 
 const EXAMPLE_PROMPTS = [
-  { text: 'Build a todo app in React using Tailwind' },
-  { text: 'Build a simple blog using Astro' },
-  { text: 'Create a cookie consent form using Material UI' },
-  { text: 'Make a space invaders game' },
-  { text: 'How do I center a div?' },
+  { text: 'Design a hero for an AI analytics SaaS with glassmorphism and orbital animation.' },
+  { text: 'Craft a pricing page for a devtools startup with yearly/monthly toggle and gradient highlights.' },
+  { text: 'Prototype a fintech landing page hero featuring staggered card reveals and subtle parallax.' },
+  { text: 'Refine a launch CTA section with gradient background, badges, and an animated arrow indicator.' },
+  { text: 'Recreate the Intercom-style testimonial marquee with auto-scrolling logos and blur edges.' },
 ];
+
+const FEATURE_CALLOUTS = [
+  {
+    icon: 'i-ph:play-circle-duotone',
+    title: 'Motion-aware prompts',
+    description: 'Explain the choreography and Figplit plans the easing, delay, and scroll triggers for you.',
+  },
+  {
+    icon: 'i-ph:sparkle-duotone',
+    title: 'Tasteful by default',
+    description: 'Color palettes, typography, and spacing start refined so you can focus on story and brand.',
+  },
+  {
+    icon: 'i-ph:stack-duotone',
+    title: 'Snippet recall',
+    description: 'Reuse cinematic hero, pricing, and marquee snippets from the built-in library with one click.',
+  },
+];
+
+const FEATURED_SNIPPETS = landingSnippetLibrary.slice(0, 3);
 
 const TEXTAREA_MIN_HEIGHT = 76;
 
@@ -72,13 +93,62 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         <div ref={scrollRef} className="flex overflow-y-auto w-full h-full">
           <div className={classNames(styles.Chat, 'flex flex-col flex-grow min-w-[var(--chat-min-width)] h-full')}>
             {!chatStarted && (
-              <div id="intro" className="mt-[26vh] max-w-chat mx-auto">
-                <h1 className="text-5xl text-center font-bold text-bolt-elements-textPrimary mb-2">
-                  Where ideas begin
+              <div id="intro" className="mt-[18vh] max-w-[720px] mx-auto px-6">
+                <h1 className="text-5xl text-center font-bold text-bolt-elements-textPrimary mb-3 leading-tight">
+                  Launch cinematic landing pages in minutes
                 </h1>
-                <p className="mb-4 text-center text-bolt-elements-textSecondary">
-                  Bring ideas to life in seconds or get help on existing projects.
+                <p className="mb-6 text-center text-bolt-elements-textSecondary text-lg">
+                  Pair your vision with Figplit’s taste. Prompt bespoke hero layouts, scroll choreography, and polished
+                  marketing flows without wrangling boilerplate.
                 </p>
+                <div className="mt-8 grid gap-3 text-left md:grid-cols-3">
+                  {FEATURE_CALLOUTS.map((callout) => (
+                    <div
+                      key={callout.title}
+                      className="rounded-2xl border border-bolt-elements-borderColor/60 bg-bolt-elements-background-depth-2/80 p-4 backdrop-blur supports-[backdrop-filter]:bg-bolt-elements-background-depth-2/40"
+                    >
+                      <div className="flex items-center gap-2 text-bolt-elements-item-contentAccent text-sm font-semibold">
+                        <div className={`${callout.icon} text-lg`} />
+                        {callout.title}
+                      </div>
+                      <p className="mt-2 text-sm text-bolt-elements-textSecondary leading-relaxed">
+                        {callout.description}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-10 text-left">
+                  <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-bolt-elements-textTertiary">
+                    Featured snippet starters
+                  </h2>
+                  <div className="mt-3 grid gap-3 md:grid-cols-3">
+                    {FEATURED_SNIPPETS.map((snippet) => (
+                      <button
+                        key={snippet.id}
+                        type="button"
+                        onClick={(event) => {
+                          sendMessage?.(event, snippet.prompt);
+                        }}
+                        className="group flex flex-col items-start gap-2 rounded-xl border border-bolt-elements-borderColor/60 bg-bolt-elements-background-depth-1/80 p-4 text-left transition-theme hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/20"
+                      >
+                        <div className="flex items-center gap-2 text-sm font-semibold text-bolt-elements-textPrimary">
+                          <div className="i-ph:shapes-duotone text-base text-bolt-elements-item-contentAccent group-hover:text-bolt-elements-item-contentAccent" />
+                          {snippet.title}
+                        </div>
+                        <p className="text-sm text-bolt-elements-textSecondary leading-relaxed">
+                          {snippet.description}
+                        </p>
+                        <div className="text-xs uppercase tracking-[0.2em] text-bolt-elements-textTertiary">
+                          {snippet.bestFor.join(' • ')}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-xs text-bolt-elements-textTertiary">
+                    These live under <code className="font-semibold">/snippets</code>. Ask Figplit to remix them or{' '}
+                    click to seed a prompt with context.
+                  </p>
+                </div>
               </div>
             )}
             <div
@@ -130,7 +200,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       minHeight: TEXTAREA_MIN_HEIGHT,
                       maxHeight: TEXTAREA_MAX_HEIGHT,
                     }}
-                    placeholder="How can Bolt help you today?"
+                    placeholder="What landing page magic should Figplit design next?"
                     translate="no"
                   />
                   <ClientOnly>

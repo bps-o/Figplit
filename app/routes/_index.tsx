@@ -5,7 +5,13 @@ import { Chat } from '~/components/chat/Chat.client';
 import { Header } from '~/components/header/Header';
 
 export const meta: MetaFunction = () => {
-  return [{ title: 'Bolt' }, { name: 'description', content: 'Talk with Bolt, an AI assistant from StackBlitz' }];
+  return [
+    { title: 'Figplit — Landing Page AI Studio' },
+    {
+      name: 'description',
+      content: 'Collaborate with Figplit, the AI vibe coder for world-class landing pages.',
+    },
+  ];
 };
 
 export const loader = () => json({});

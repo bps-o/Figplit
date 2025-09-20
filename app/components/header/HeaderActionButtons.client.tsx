@@ -23,7 +23,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
             }
           }}
         >
-          <div className="i-bolt:chat text-sm" />
+          <div className="i-ph:chats-teardrop-dots-duotone text-base" />
         </Button>
         <div className="w-[1px] bg-bolt-elements-borderColor" />
         <Button
@@ -36,7 +36,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
             workbenchStore.showWorkbench.set(!showWorkbench);
           }}
         >
-          <div className="i-ph:code-bold" />
+          <div className="i-ph:brackets-curly-duotone text-base" />
         </Button>
       </div>
     </div>
