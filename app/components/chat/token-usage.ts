@@ -1,11 +1,13 @@
 import type { CompletionTokenUsage } from 'ai';
 
+const numberFormatter = new Intl.NumberFormat('en-US');
+
 export const formatTokens = (value: number) => {
   if (!Number.isFinite(value)) {
     return '—';
   }
 
-  return value.toLocaleString();
+  return numberFormatter.format(value);
 };
 
 export function buildTokenUsageDisplay(usage: CompletionTokenUsage | null, limit?: number) {
