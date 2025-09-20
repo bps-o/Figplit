@@ -1,4 +1,5 @@
 import { type ActionFunctionArgs } from '@remix-run/cloudflare';
+import { type CompletionTokenUsage } from 'ai';
 import { MAX_RESPONSE_SEGMENTS, MAX_TOKENS } from '~/lib/.server/llm/constants';
 import { CONTINUE_PROMPT } from '~/lib/.server/llm/prompts';
 import { streamText, type Messages, type StreamingOptions } from '~/lib/.server/llm/stream-text';
@@ -37,12 +38,20 @@ export async function chatAction({ context, request }: ActionFunctionArgs) {
   const baseOptions: StreamingOptions = {
     toolChoice: 'none',
   };
+  let totalUsage: CompletionTokenUsage | null = null;
 
   try {
     const runStream = async () => {
       const result = await streamText(messages, context.cloudflare.env, {
         ...baseOptions,
         onFinish: async ({ text: content, finishReason, usage }) => {
+          const aggregatedUsage = accumulateUsage(totalUsage, usage);
+          totalUsage = aggregatedUsage;
+
+          usage.promptTokens = aggregatedUsage.promptTokens;
+          usage.completionTokens = aggregatedUsage.completionTokens;
+          usage.totalTokens = aggregatedUsage.totalTokens;
+
           const withAssistant = [...messages, { role: 'assistant', content }];
           const matchedSnippets = findSnippetsInMessages(withAssistant);
           const newSnippets = matchedSnippets.filter((snippet) => {
@@ -66,7 +75,7 @@ export async function chatAction({ context, request }: ActionFunctionArgs) {
 
             result.streamData.append({
               type: 'token-usage',
-              usage,
+              usage: aggregatedUsage,
               limit: MAX_TOKENS,
               segment: stream.switches,
             });
@@ -158,4 +167,19 @@ function findLastUserMessageIndex(messages: Messages) {
   }
 
   return -1;
+}
+
+function accumulateUsage(
+  previous: CompletionTokenUsage | null,
+  usage: CompletionTokenUsage,
+): CompletionTokenUsage {
+  if (!previous) {
+    return { ...usage };
+  }
+
+  return {
+    promptTokens: previous.promptTokens + usage.promptTokens,
+    completionTokens: previous.completionTokens + usage.completionTokens,
+    totalTokens: previous.totalTokens + usage.totalTokens,
+  };
 }
