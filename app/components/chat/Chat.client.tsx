@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react';
-import type { Message } from 'ai';
+import type { CompletionTokenUsage, Message } from 'ai';
 import { useChat } from 'ai/react';
 import { useAnimate } from 'framer-motion';
 import { memo, useEffect, useRef, useState } from 'react';
@@ -8,10 +8,12 @@ import { useMessageParser, usePromptEnhancer, useShortcuts, useSnapScroll } from
 import { useChatHistory } from '~/lib/persistence';
 import { chatStore } from '~/lib/stores/chat';
 import { workbenchStore } from '~/lib/stores/workbench';
+import { MAX_TOKENS } from '~/lib/llm/constants';
 import { fileModificationsToHTML } from '~/utils/diff';
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
 import { BaseChat } from './BaseChat';
+import { createOnFinishHandler } from './chat-usage';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -75,15 +77,15 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
 
   const [animationScope, animate] = useAnimate();
 
+  const [tokenUsage, setTokenUsage] = useState<CompletionTokenUsage | null>(null);
+
   const { messages, isLoading, input, handleInputChange, setInput, stop, append } = useChat({
     api: '/api/chat',
     onError: (error) => {
       logger.error('Request failed\n\n', error);
       toast.error('There was an error processing your request');
     },
-    onFinish: () => {
-      logger.debug('Finished streaming');
-    },
+    onFinish: createOnFinishHandler(setTokenUsage),
     initialMessages,
   });
 
@@ -102,7 +104,7 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
     if (messages.length > initialMessages.length) {
       storeMessageHistory(messages).catch((error) => toast.error(error.message));
     }
-  }, [messages, isLoading, parseMessages]);
+  }, [messages, isLoading, parseMessages, initialMessages.length, storeMessageHistory]);
 
   const scrollTextArea = () => {
     const textarea = textareaRef.current;
@@ -153,13 +155,6 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
       return;
     }
 
-    /**
-     * @note (delm) Usually saving files shouldn't take long but it may take longer if there
-     * many unsaved files. In that case we need to block user input and show an indicator
-     * of some kind so the user is aware that something is happening. But I consider the
-     * happy case to be no unsaved files and I would expect users to save their changes
-     * before they send another message.
-     */
     await workbenchStore.saveAllFiles();
 
     const fileModifications = workbenchStore.getFileModifcations();
@@ -171,19 +166,8 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
     if (fileModifications !== undefined) {
       const diff = fileModificationsToHTML(fileModifications);
 
-      /**
-       * If we have file modifications we append a new user message manually since we have to prefix
-       * the user input with the file modifications and we don't want the new user input to appear
-       * in the prompt. Using `append` is almost the same as `handleSubmit` except that we have to
-       * manually reset the input and we'd have to manually pass in file attachments. However, those
-       * aren't relevant here.
-       */
       append({ role: 'user', content: `${diff}\n\n${_input}` });
 
-      /**
-       * After sending a new message we reset all modifications since the model
-       * should now be aware of all the changes.
-       */
       workbenchStore.resetAllFileModifications();
     } else {
       append({ role: 'user', content: _input });
@@ -224,6 +208,8 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
           content: parsedMessages[i] || '',
         };
       })}
+      tokenUsage={tokenUsage}
+      tokenLimit={MAX_TOKENS}
       enhancePrompt={() => {
         enhancePrompt(input, (input) => {
           setInput(input);

@@ -1,5 +1,6 @@
-import type { Message } from 'ai';
-import React, { useState, type RefCallback } from 'react';
+
+import type { CompletionTokenUsage, Message } from 'ai';
+import React, { type RefCallback } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { Menu } from '~/components/sidebar/Menu.client';
 import { IconButton } from '~/components/ui/IconButton';
@@ -9,6 +10,7 @@ import { classNames } from '~/utils/classNames';
 import { Messages } from './Messages.client';
 import { SendButton } from './SendButton.client';
 import { CustomSnippetDialog } from './CustomSnippetDialog';
+import { TokenUsageSummary } from './TokenUsageSummary';
 
 import styles from './BaseChat.module.scss';
 
@@ -24,6 +26,8 @@ interface BaseChatProps {
   enhancingPrompt?: boolean;
   promptEnhanced?: boolean;
   input?: string;
+  tokenUsage?: CompletionTokenUsage | null;
+  tokenLimit?: number;
   handleStop?: () => void;
   sendMessage?: (event: React.UIEvent, messageInput?: string) => void;
   handleInputChange?: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
@@ -75,6 +79,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       promptEnhanced = false,
       messages,
       input = '',
+      tokenUsage = null,
+      tokenLimit,
       sendMessage,
       handleInputChange,
       enhancePrompt,
@@ -124,9 +130,12 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   ))}
                 </div>
                 <div className="mt-10 text-left">
-                  <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-bolt-elements-textTertiary">
-                    Featured snippet starters
-                  </h2>
+                  <div className="flex items-center justify-between gap-4">
+                    <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-bolt-elements-textTertiary">
+                      Featured snippet starters
+                    </h2>
+                    <CustomSnippetDialog sendMessage={sendMessage} isStreaming={isStreaming} />
+                  </div>
                   <div className="mt-3 grid gap-3 md:grid-cols-3">
                     {FEATURED_SNIPPETS.map((snippet) => (
                       <button
@@ -283,8 +292,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       />
                     )}
                   </ClientOnly>
-                  <div className="flex justify-between text-sm p-4 pt-2">
-                    <div className="flex gap-1 items-center">
+                  <div className="flex flex-wrap justify-between gap-3 text-sm p-4 pt-2">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <TokenUsageSummary usage={tokenUsage} limit={tokenLimit} />
                       <IconButton
                         title="Enhance prompt"
                         disabled={input.length === 0 || enhancingPrompt}

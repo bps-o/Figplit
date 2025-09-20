@@ -33,35 +33,78 @@ export async function chatAction({ context, request }: ActionFunctionArgs) {
   }
 
   const stream = new SwitchableStream();
+  const seenSnippets = new Map<string, SnippetRecord>();
+  const baseOptions: StreamingOptions = {
+    toolChoice: 'none',
+  };
 
   try {
-    const options: StreamingOptions = {
-      toolChoice: 'none',
-      onFinish: async ({ text: content, finishReason }) => {
-        if (finishReason !== 'length') {
-          return stream.close();
-        }
+    const runStream = async () => {
+      const result = await streamText(messages, context.cloudflare.env, {
+        ...baseOptions,
+        onFinish: async ({ text: content, finishReason, usage }) => {
+          const withAssistant = [...messages, { role: 'assistant', content }];
+          const matchedSnippets = findSnippetsInMessages(withAssistant);
+          const newSnippets = matchedSnippets.filter((snippet) => {
+            if (seenSnippets.has(snippet.id)) {
+              return false;
+            }
 
-        if (stream.switches >= MAX_RESPONSE_SEGMENTS) {
-          throw Error('Cannot continue message: Maximum segments reached');
-        }
+            seenSnippets.set(snippet.id, snippet);
 
-        const switchesLeft = MAX_RESPONSE_SEGMENTS - stream.switches;
+            return true;
+          });
 
-        console.log(`Reached max token limit (${MAX_TOKENS}): Continuing message (${switchesLeft} switches left)`);
+          try {
+            if (newSnippets.length > 0) {
+              result.streamData.append({
+                type: 'snippet-suggestions',
+                snippets: newSnippets,
+                segment: stream.switches,
+              });
+            }
 
-        messages.push({ role: 'assistant', content });
-        messages.push({ role: 'user', content: CONTINUE_PROMPT });
+            result.streamData.append({
+              type: 'token-usage',
+              usage,
+              limit: MAX_TOKENS,
+              segment: stream.switches,
+            });
+          } finally {
+            await result.streamData.close();
+          }
 
-        const result = await streamText(messages, context.cloudflare.env, options);
+          if (finishReason !== 'length') {
+            stream.close();
+            return;
+          }
 
-        return stream.switchSource(result.toAIStream());
-      },
+          if (stream.switches >= MAX_RESPONSE_SEGMENTS) {
+            throw Error('Cannot continue message: Maximum segments reached');
+          }
+
+          const switchesLeft = MAX_RESPONSE_SEGMENTS - stream.switches;
+
+          console.log(`Reached max token limit (${MAX_TOKENS}): Continuing message (${switchesLeft} switches left)`);
+
+          messages.push({ role: 'assistant', content });
+          messages.push({ role: 'user', content: CONTINUE_PROMPT });
+
+          await runStream();
+        },
+      });
+
+      const response = result.toAIStreamResponse({ data: result.streamData });
+      const body = response.body;
+
+      if (!body) {
+        throw new Error('Failed to create AI stream body');
+      }
+
+      stream.switchSource(body);
     };
 
-    const result = await streamText(messages, context.cloudflare.env, options);
-
-    stream.switchSource(result.toAIStream());
+    await runStream();
 
     return new Response(stream.readable, {
       status: 200,
