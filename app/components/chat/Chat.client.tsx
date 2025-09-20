@@ -155,6 +155,8 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
       return;
     }
 
+    setTokenUsage(null);
+
     await workbenchStore.saveAllFiles();
 
     const fileModifications = workbenchStore.getFileModifcations();
