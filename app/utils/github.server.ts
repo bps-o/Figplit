@@ -1,4 +1,7 @@
 import { request as internalRequest } from '~/lib/fetch';
+import type { Response as NodeFetchResponse } from 'node-fetch';
+
+type GitHubResponse = globalThis.Response | NodeFetchResponse;
 
 const GITHUB_API_BASE = 'https://api.github.com';
 const GITHUB_AUTHORIZE_URL = 'https://github.com/login/oauth/authorize';
@@ -295,7 +298,7 @@ export async function createPullRequest(
   return data;
 }
 
-async function fetchFromGitHub(path: string, token: string, init: RequestInit = {}) {
+async function fetchFromGitHub(path: string, token: string, init: RequestInit = {}): Promise<GitHubResponse> {
   const url = path.startsWith('http') ? path : `${GITHUB_API_BASE}${path}`;
 
   const headers: Record<string, string> = {
@@ -317,10 +320,10 @@ async function fetchFromGitHub(path: string, token: string, init: RequestInit = 
     headers,
   });
 
-  return response;
+  return response as GitHubResponse;
 }
 
-async function safeReadError(response: Response) {
+async function safeReadError(response: GitHubResponse) {
   try {
     const data = await response.json();
 

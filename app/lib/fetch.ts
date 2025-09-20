@@ -1,4 +1,5 @@
-type CommonRequest = Omit<RequestInit, 'body'> & { body?: URLSearchParams };
+type CommonRequest = Omit<RequestInit, 'body'> & { body?: BodyInit | null };
+type NodeFetchRequestInit = import('node-fetch').RequestInit;
 
 export async function request(url: string, init?: CommonRequest) {
   if (import.meta.env.DEV) {
@@ -7,7 +8,9 @@ export async function request(url: string, init?: CommonRequest) {
 
     const agent = url.startsWith('https') ? new https.Agent({ rejectUnauthorized: false }) : undefined;
 
-    return nodeFetch.default(url, { ...init, agent });
+    const nodeInit: NodeFetchRequestInit = { ...(init as NodeFetchRequestInit), agent };
+
+    return nodeFetch.default(url, nodeInit);
   }
 
   return fetch(url, init);

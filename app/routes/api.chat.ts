@@ -6,6 +6,11 @@ import { streamText, type Messages, type StreamingOptions } from '~/lib/.server/
 import { findSnippetsInMessages, type SnippetRecord } from '~/lib/.server/snippets/registry';
 import SwitchableStream from '~/lib/.server/llm/switchable-stream';
 
+type JsonValue = string | number | boolean | null | JsonValue[] | JsonObject;
+interface JsonObject {
+  [key: string]: JsonValue;
+}
+
 export async function action(args: ActionFunctionArgs) {
   return chatAction(args);
 }
@@ -66,11 +71,13 @@ export async function chatAction({ context, request }: ActionFunctionArgs) {
 
           try {
             if (newSnippets.length > 0) {
+              const snippetPayload = newSnippets.map(serializeSnippetRecord);
+
               result.streamData.append({
                 type: 'snippet-suggestions',
-                snippets: newSnippets,
+                snippets: snippetPayload,
                 segment: stream.switches,
-              });
+              } satisfies JsonObject);
             }
 
             result.streamData.append({
@@ -78,7 +85,7 @@ export async function chatAction({ context, request }: ActionFunctionArgs) {
               usage: aggregatedUsage,
               limit: MAX_TOKENS,
               segment: stream.switches,
-            });
+            } satisfies JsonObject);
           } finally {
             await result.streamData.close();
           }
@@ -129,6 +136,22 @@ export async function chatAction({ context, request }: ActionFunctionArgs) {
       statusText: 'Internal Server Error',
     });
   }
+}
+
+function serializeSnippetRecord(snippet: SnippetRecord): JsonObject {
+  const payload = {
+    id: snippet.id,
+    title: snippet.title,
+    description: snippet.description ?? null,
+    path: snippet.path,
+    filename: snippet.filename,
+    bestFor: snippet.bestFor ?? null,
+    prompt: snippet.prompt ?? null,
+    docblock: snippet.docblock,
+    code: snippet.code,
+  } satisfies JsonObject;
+
+  return payload;
 }
 
 function formatSnippetContext(snippets: SnippetRecord[]): string | null {

@@ -147,7 +147,15 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-bolt-elements-textTertiary">
                       Featured snippet starters
                     </h2>
-                    <CustomSnippetDialog sendMessage={effectiveSendMessage} isStreaming={isStreaming} />
+                    <button
+                      type="button"
+                      disabled={!canSendMessages}
+                      onClick={() => setCustomSnippetOpen(true)}
+                      className="flex items-center gap-2 rounded-lg border border-bolt-elements-borderColor/60 px-3 py-1.5 text-sm font-semibold text-bolt-elements-textPrimary transition-theme hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <div className="i-ph:magic-wand-duotone text-base text-bolt-elements-item-contentAccent" />
+                      Plan custom snippet
+                    </button>
                   </div>
                   <div className="mt-3 grid gap-3 md:grid-cols-3">
                     {FEATURED_SNIPPETS.map((snippet) => (

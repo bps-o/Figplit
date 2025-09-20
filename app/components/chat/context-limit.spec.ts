@@ -43,9 +43,9 @@ describe('evaluateContextLimit', () => {
 
 describe('buildForkSummary', () => {
   const baseMessages: Message[] = [
-    { role: 'user', content: 'Draft the hero section with gradient background.' },
-    { role: 'assistant', content: 'Sure thing!' },
-    { role: 'user', content: 'Follow up with pricing tiers.' },
+    { id: 'm1', role: 'user', content: 'Draft the hero section with gradient background.' },
+    { id: 'm2', role: 'assistant', content: 'Sure thing!' },
+    { id: 'm3', role: 'user', content: 'Follow up with pricing tiers.' },
   ];
 
   it('summarizes artifacts and recent prompts', () => {

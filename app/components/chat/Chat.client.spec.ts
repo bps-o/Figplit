@@ -7,7 +7,7 @@ describe('createOnFinishHandler', () => {
     const handler = createOnFinishHandler(setUsage);
     const usage = { promptTokens: 120, completionTokens: 80, totalTokens: 200 };
 
-    handler({ role: 'assistant', content: '' } as any, { usage, finishReason: 'stop' });
+    handler({ role: 'assistant', content: '' } as any, { usage });
 
     expect(setUsage).toHaveBeenCalledWith(usage);
   });
