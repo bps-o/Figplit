@@ -21,14 +21,18 @@ export type Messages = Message[];
 
 export type StreamingOptions = Omit<Parameters<typeof _streamText>[0], 'model'>;
 
-export type StreamTextResult = ReturnType<typeof _streamText> & {
+export type StreamTextResult = Awaited<ReturnType<typeof _streamText>> & {
   streamData: StreamData;
 };
 
-export function streamText(messages: Messages, env: Env, options?: StreamingOptions): StreamTextResult {
+export async function streamText(
+  messages: Messages,
+  env: Env,
+  options?: StreamingOptions,
+): Promise<StreamTextResult> {
   const streamData = new StreamData();
 
-  const result = _streamText({
+  const result = await _streamText({
     model: getAnthropicModel(getAPIKey(env)),
     system: getSystemPrompt(),
     maxTokens: MAX_TOKENS,

@@ -103,7 +103,7 @@ export async function chatAction({ context, request }: ActionFunctionArgs) {
         },
       });
 
-      const response = result.toAIStreamResponse({ data: result.streamData });
+      const response = result.toDataStreamResponse({ data: result.streamData });
       const body = response.body;
 
       if (!body) {
