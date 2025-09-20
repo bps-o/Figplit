@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createOnFinishHandler } from './ChatImplInner';
+import { createOnFinishHandler } from './chat-usage';
 
 describe('createOnFinishHandler', () => {
   it('captures usage from the finish event', () => {
