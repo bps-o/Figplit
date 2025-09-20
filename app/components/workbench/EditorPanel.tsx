@@ -89,6 +89,14 @@ export const EditorPanel = memo(
         return `${WORK_DIR}/public`;
       }
 
+      if (selectedFile === WORK_DIR) {
+        return WORK_DIR;
+      }
+
+      if (!selectedFile.startsWith(WORK_DIR)) {
+        return WORK_DIR;
+      }
+
       const selectedDirent = files?.[selectedFile];
 
       if (selectedDirent?.type === 'folder') {
