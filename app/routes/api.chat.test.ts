@@ -11,12 +11,18 @@ vi.mock('~/lib/.server/llm/stream-text', () => ({
 beforeEach(() => {
   streamTextMock.mockReset();
   streamTextMock.mockResolvedValue({
-    toAIStream: () =>
-      new ReadableStream({
-        start(controller) {
-          controller.close();
-        },
-      }),
+    streamData: {
+      append: vi.fn(),
+      close: vi.fn().mockResolvedValue(undefined),
+    },
+    toDataStreamResponse: () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.close();
+          },
+        }),
+      ),
   });
 });
 
