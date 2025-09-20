@@ -12,6 +12,7 @@ import {
   type PreviewAnimationSample,
   type PreviewPerformanceMetrics,
 } from '~/lib/stores/preview-telemetry';
+import { applyPreviewNavigationMetadata, injectPreviewBridge } from '~/utils/preview-frame';
 
 type PreviewTelemetryMessage =
   | {
@@ -108,6 +109,13 @@ export const Preview = memo(() => {
       navigationCounterRef.current = navigationId;
       lastNavigationIdRef.current = navigationId;
 
+      applyPreviewNavigationMetadata(iframeRef.current, {
+        navigationId,
+        startedAt: getRelativeTimestamp(),
+        startedAtTs: Date.now(),
+        url: nextUrl,
+      });
+
       beginPreviewNavigation({
         port: activePort,
         navigationId,
@@ -172,6 +180,8 @@ export const Preview = memo(() => {
     if (activePort === undefined || lastNavigationIdRef.current === undefined) {
       return;
     }
+
+    injectPreviewBridge(iframeRef.current);
 
     completePreviewNavigation({
       port: activePort,
