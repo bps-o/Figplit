@@ -18,6 +18,7 @@ interface BaseChatProps {
   showChat?: boolean;
   chatStarted?: boolean;
   isStreaming?: boolean;
+  aborted?: boolean;
   messages?: Message[];
   enhancingPrompt?: boolean;
   promptEnhanced?: boolean;
@@ -68,6 +69,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       showChat = true,
       chatStarted = false,
       isStreaming = false,
+      aborted = false,
       enhancingPrompt = false,
       promptEnhanced = false,
       messages,
@@ -165,6 +167,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       className="flex flex-col w-full flex-1 max-w-chat px-4 pb-6 mx-auto z-1"
                       messages={messages}
                       isStreaming={isStreaming}
+                      aborted={aborted}
                     />
                   ) : null;
                 }}
