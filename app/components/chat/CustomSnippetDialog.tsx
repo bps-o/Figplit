@@ -1,142 +1,283 @@
-import React, { useMemo, useState } from 'react';
+
+import React, { useEffect, useMemo, useState } from 'react';
 import { landingSnippetLibrary } from '~/lib/snippets/landing-snippets';
+import { Dialog, DialogButton, DialogDescription, DialogRoot, DialogTitle } from '~/components/ui/Dialog';
 import { classNames } from '~/utils/classNames';
 
 interface CustomSnippetDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   sendMessage?: (event: React.UIEvent, messageInput?: string) => void;
-  isStreaming?: boolean;
 }
 
-const DEFAULT_INSTRUCTIONS = 'Describe the exact visuals, copy, and motion you want Figplit to build into the snippet.';
+type SnippetOption =
+  | (typeof landingSnippetLibrary)[number]
+  | {
+      id: 'custom';
+      title: string;
+      description: string;
+      bestFor: string[];
+      file: string;
+      prompt?: string;
+    };
 
-export function CustomSnippetDialog({ sendMessage, isStreaming }: CustomSnippetDialogProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [selectedSnippetId, setSelectedSnippetId] = useState<string | undefined>(landingSnippetLibrary[0]?.id);
-  const [instructions, setInstructions] = useState('');
+const CUSTOM_SNIPPET_OPTION: SnippetOption = {
+  id: 'custom',
+  title: 'Start from scratch',
+  description: 'Begin with a blank animation shell and let Figplit compose a bespoke snippet from the ground up.',
+  bestFor: ['Motion lab', 'Explorations', 'Net new'],
+  file: 'snippets/custom-animation.tsx',
+};
+
+export function CustomSnippetDialog({ open, onOpenChange, sendMessage }: CustomSnippetDialogProps) {
+  const [selectedSnippetId, setSelectedSnippetId] = useState<SnippetOption['id']>('custom');
+  const [creativeBrief, setCreativeBrief] = useState('');
+  const [targetFile, setTargetFile] = useState('');
+  const [targetArea, setTargetArea] = useState('');
+  const [snippetNickname, setSnippetNickname] = useState('CinematicMotionBlock');
+
+  const snippetOptions = useMemo<SnippetOption[]>(() => {
+    return [CUSTOM_SNIPPET_OPTION, ...landingSnippetLibrary];
+  }, []);
 
   const selectedSnippet = useMemo(() => {
-    if (!selectedSnippetId) {
-      return undefined;
+    return snippetOptions.find((snippet) => snippet.id === selectedSnippetId) ?? CUSTOM_SNIPPET_OPTION;
+  }, [selectedSnippetId, snippetOptions]);
+
+  const canSubmit = creativeBrief.trim().length > 0 && (targetFile.trim().length > 0 || targetArea.trim().length > 0);
+
+  useEffect(() => {
+    if (!open) {
+      setSelectedSnippetId('custom');
+      setCreativeBrief('');
+      setTargetFile('');
+      setTargetArea('');
+      setSnippetNickname('CinematicMotionBlock');
     }
+  }, [open]);
 
-    return landingSnippetLibrary.find((snippet) => snippet.id === selectedSnippetId);
-  }, [selectedSnippetId]);
-
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const submitPlan = (event: React.UIEvent) => {
     event.preventDefault();
 
-    if (!selectedSnippet) {
+    if (!sendMessage || !canSubmit) {
       return;
     }
 
-    const trimmedInstructions = instructions.trim();
-    const promptParts = [selectedSnippet.prompt.trim()];
+    const lines: string[] = [];
 
-    if (trimmedInstructions.length > 0) {
-      promptParts.push(trimmedInstructions);
+    if (selectedSnippet.id === 'custom') {
+      lines.push(
+        `Let's design a brand-new animation snippet called "${snippetNickname}". Start from a clean slate and build the composition specifically for this project.`,
+      );
+    } else {
+      lines.push(
+        `Use the snippet at ${selectedSnippet.file} as the baseline and evolve it into a custom animation called "${snippetNickname}" tailored for this project.`,
+      );
+
+      if (selectedSnippet.description) {
+        lines.push(`Reference notes: ${selectedSnippet.description}`);
+      }
     }
 
-    const prompt = promptParts.join('\n\n');
+    if (creativeBrief.trim().length > 0) {
+      lines.push('Creative direction:');
 
-    sendMessage?.({} as React.UIEvent, prompt);
+      for (const bullet of creativeBrief
+        .split('\n')
+        .map((entry) => entry.trim())
+        .filter(Boolean)) {
+        lines.push(`- ${bullet}`);
+      }
+    }
 
-    setIsOpen(false);
-    setInstructions('');
+    lines.push('Workflow:');
+    lines.push('- Iterate with me on the snippet code first. Show the updated component before applying it.');
+    lines.push('- Once the snippet looks right, integrate it without rewriting the entire landing page.');
+
+    const targetLines: string[] = [];
+
+    if (targetFile.trim().length > 0) {
+      targetLines.push(`Limit code changes to ${targetFile.trim()}.`);
+    }
+
+    if (targetArea.trim().length > 0) {
+      targetLines.push(`Mount it specifically inside the ${targetArea.trim()} portion of that file.`);
+    }
+
+    targetLines.push('Avoid touching unrelated files unless a supporting dependency is absolutely required.');
+
+    lines.push('Integration constraints:');
+
+    for (const constraint of targetLines) {
+      lines.push(`- ${constraint}`);
+    }
+
+    lines.push('Hand back a diff that isolates the targeted edits so I can review before finalizing.');
+
+    sendMessage(event, lines.join('\n'));
+
+    onOpenChange(false);
   };
 
   return (
-    <>
-      <button
-        type="button"
-        className={classNames(
-          'text-xs font-semibold uppercase tracking-[0.25em] text-bolt-elements-textTertiary transition-theme',
-          'border border-bolt-elements-borderColor/70 rounded-full px-3 py-1 hover:border-bolt-elements-item-backgroundAccent',
-          'hover:text-bolt-elements-textPrimary disabled:opacity-60 disabled:cursor-not-allowed',
-        )}
-        onClick={() => setIsOpen(true)}
-        disabled={isStreaming}
+    <DialogRoot open={open} onOpenChange={onOpenChange}>
+      <Dialog
+        onBackdrop={() => onOpenChange(false)}
+        onClose={() => onOpenChange(false)}
+        className="max-w-[720px] w-full"
       >
-        Custom snippet
-      </button>
-
-      {isOpen ? (
-        <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 px-4 py-8"
-          role="dialog"
-          aria-modal
-        >
-          <div className="w-full max-w-lg rounded-2xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-6 shadow-xl">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-bolt-elements-textPrimary">Design a custom snippet brief</h2>
-                <p className="mt-1 text-sm text-bolt-elements-textSecondary">
-                  Choose a base snippet and describe how Figplit should remix it for your project.
-                </p>
-              </div>
-              <button
-                type="button"
-                aria-label="Close"
-                className="rounded-full border border-transparent p-1 text-bolt-elements-textTertiary transition-theme hover:border-bolt-elements-borderColor hover:text-bolt-elements-textPrimary"
-                onClick={() => setIsOpen(false)}
-              >
-                <div className="i-ph:x text-lg" />
-              </button>
+        <DialogTitle>Custom animation workshop</DialogTitle>
+        <DialogDescription>
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <p className="text-sm text-bolt-elements-textSecondary">
+                Prototype a bespoke motion snippet, iterate on it with Figplit, then deploy it exactly where it belongs
+                on the page. This flow keeps edits scoped so you never have to rewrite the entire landing layout.
+              </p>
             </div>
+            <form
+              className="space-y-6"
+              onSubmit={(event) => {
+                event.preventDefault();
+                submitPlan(event as unknown as React.UIEvent);
+              }}
+            >
+              <section className="space-y-3">
+                <header className="space-y-1">
+                  <h3 className="text-sm font-semibold text-bolt-elements-textPrimary">Starting point</h3>
+                  <p className="text-xs text-bolt-elements-textSecondary">
+                    Remix an existing library snippet or begin from an empty canvas.
+                  </p>
+                </header>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {snippetOptions.map((option) => {
+                    const active = option.id === selectedSnippet.id;
 
-            <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
-              <label className="flex flex-col gap-2 text-sm text-bolt-elements-textSecondary">
-                Base snippet
-                <select
-                  className="w-full rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 px-3 py-2 text-sm text-bolt-elements-textPrimary focus:outline-none focus:border-bolt-elements-item-backgroundAccent"
-                  value={selectedSnippetId}
-                  onChange={(event) => setSelectedSnippetId(event.target.value)}
-                >
-                  {landingSnippetLibrary.map((snippet) => (
-                    <option key={snippet.id} value={snippet.id}>
-                      {snippet.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="flex flex-col gap-2 text-sm text-bolt-elements-textSecondary">
-                Instructions
-                <textarea
-                  className="min-h-[120px] rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 px-3 py-2 text-sm text-bolt-elements-textPrimary focus:outline-none focus:border-bolt-elements-item-backgroundAccent"
-                  value={instructions}
-                  placeholder={DEFAULT_INSTRUCTIONS}
-                  onChange={(event) => setInstructions(event.target.value)}
-                />
-              </label>
-
-              {selectedSnippet ? (
-                <div className="rounded-xl border border-dashed border-bolt-elements-borderColor/80 bg-bolt-elements-background-depth-2/60 p-3 text-xs text-bolt-elements-textTertiary">
-                  <p className="font-semibold uppercase tracking-[0.2em] text-bolt-elements-textSecondary">Snippets path</p>
-                  <p className="mt-1 font-mono text-[11px] text-bolt-elements-textPrimary">/{selectedSnippet.file}</p>
-                  <p className="mt-2 text-bolt-elements-textSecondary">{selectedSnippet.description}</p>
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setSelectedSnippetId(option.id)}
+                        className={classNames(
+                          'rounded-lg border px-4 py-3 text-left transition-theme',
+                          active
+                            ? 'border-bolt-elements-item-backgroundAccent bg-bolt-elements-item-backgroundAccent/10'
+                            : 'border-bolt-elements-borderColor/60 hover:border-bolt-elements-item-backgroundAccent',
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-semibold text-bolt-elements-textPrimary">{option.title}</span>
+                          {active ? (
+                            <span className="i-ph:check-circle-duotone text-lg text-bolt-elements-item-contentAccent" />
+                          ) : null}
+                        </div>
+                        <p className="mt-2 text-xs text-bolt-elements-textSecondary leading-relaxed">
+                          {option.description}
+                        </p>
+                        {option.bestFor?.length ? (
+                          <p className="mt-3 text-[11px] uppercase tracking-[0.2em] text-bolt-elements-textTertiary">
+                            {option.bestFor.join(' • ')}
+                          </p>
+                        ) : null}
+                      </button>
+                    );
+                  })}
                 </div>
-              ) : null}
+              </section>
 
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  className="rounded-lg border border-transparent px-4 py-2 text-sm font-medium text-bolt-elements-textTertiary transition-theme hover:border-bolt-elements-borderColor hover:text-bolt-elements-textPrimary"
-                  onClick={() => setIsOpen(false)}
-                >
+              <section className="space-y-3">
+                <header className="space-y-1">
+                  <h3 className="text-sm font-semibold text-bolt-elements-textPrimary">Give the snippet a nickname</h3>
+                  <p className="text-xs text-bolt-elements-textSecondary">
+                    Figplit will refer to the piece by this name while it iterates and when it integrates it into the
+                    codebase.
+                  </p>
+                </header>
+                <input
+                  type="text"
+                  value={snippetNickname}
+                  onChange={(event) => setSnippetNickname(event.target.value)}
+                  className="w-full rounded-md border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-bolt-elements-item-backgroundAccent"
+                  placeholder="e.g. AuroraHeroLoop"
+                />
+              </section>
+
+              <section className="space-y-3">
+                <header className="space-y-1">
+                  <h3 className="text-sm font-semibold text-bolt-elements-textPrimary">Creative direction</h3>
+                  <p className="text-xs text-bolt-elements-textSecondary">
+                    Capture the beats, timing, and mood. Separate each idea onto its own line—we’ll turn them into a
+                    checklist for the model.
+                  </p>
+                </header>
+                <textarea
+                  value={creativeBrief}
+                  onChange={(event) => setCreativeBrief(event.target.value)}
+                  rows={4}
+                  className="w-full resize-none rounded-md border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-bolt-elements-item-backgroundAccent"
+                  placeholder={
+                    'e.g. Slow orbital motion around a central product card\nLayered glow trails that react to cursor position'
+                  }
+                />
+              </section>
+
+              <section className="space-y-3">
+                <header className="space-y-1">
+                  <h3 className="text-sm font-semibold text-bolt-elements-textPrimary">Where should it live?</h3>
+                  <p className="text-xs text-bolt-elements-textSecondary">
+                    Tell Figplit exactly where to mount the finished snippet so the integration stays scoped.
+                  </p>
+                </header>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium uppercase tracking-[0.2em] text-bolt-elements-textTertiary">
+                      File
+                    </label>
+                    <input
+                      type="text"
+                      value={targetFile}
+                      onChange={(event) => setTargetFile(event.target.value)}
+                      className="w-full rounded-md border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-bolt-elements-item-backgroundAccent"
+                      placeholder="e.g. app/routes/index.tsx"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium uppercase tracking-[0.2em] text-bolt-elements-textTertiary">
+                      Section
+                    </label>
+                    <input
+                      type="text"
+                      value={targetArea}
+                      onChange={(event) => setTargetArea(event.target.value)}
+                      className="w-full rounded-md border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-bolt-elements-item-backgroundAccent"
+                      placeholder="e.g. hero animation stack"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <footer className="flex items-center justify-end gap-2 border-t border-bolt-elements-borderColor pt-4">
+                <DialogButton type="secondary" onClick={() => onOpenChange(false)}>
                   Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-lg border border-transparent bg-bolt-elements-item-backgroundAccent px-4 py-2 text-sm font-semibold text-bolt-elements-item-contentAccent transition-theme hover:brightness-110"
-                  disabled={!selectedSnippet}
+                </DialogButton>
+                <DialogButton
+                  type="primary"
+                  onClick={(event) => {
+                    if (!canSubmit) {
+                      event.preventDefault();
+                      return;
+                    }
+
+                    submitPlan(event);
+                  }}
                 >
-                  Send brief to Figplit
-                </button>
-              </div>
+                  Send plan to Figplit
+                </DialogButton>
+              </footer>
             </form>
           </div>
-        </div>
-      ) : null}
-    </>
+        </DialogDescription>
+      </Dialog>
+    </DialogRoot>
   );
 }

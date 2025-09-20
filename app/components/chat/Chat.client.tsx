@@ -73,7 +73,7 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
 
   const [chatStarted, setChatStarted] = useState(initialMessages.length > 0);
 
-  const { showChat } = useStore(chatStore);
+  const { showChat, aborted } = useStore(chatStore);
 
   const [animationScope, animate] = useAnimate();
 
@@ -189,6 +189,7 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
       input={input}
       showChat={showChat}
       chatStarted={chatStarted}
+      aborted={aborted}
       isStreaming={isLoading}
       enhancingPrompt={enhancingPrompt}
       promptEnhanced={promptEnhanced}

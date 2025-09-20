@@ -1,3 +1,4 @@
+
 import type { CompletionTokenUsage, Message } from 'ai';
 import React, { type RefCallback } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
@@ -20,6 +21,7 @@ interface BaseChatProps {
   showChat?: boolean;
   chatStarted?: boolean;
   isStreaming?: boolean;
+  aborted?: boolean;
   messages?: Message[];
   enhancingPrompt?: boolean;
   promptEnhanced?: boolean;
@@ -59,6 +61,7 @@ const FEATURE_CALLOUTS = [
 ];
 
 const FEATURED_SNIPPETS = landingSnippetLibrary.slice(0, 3);
+const SNIPPET_RECOMMENDATIONS = landingSnippetLibrary;
 
 const TEXTAREA_MIN_HEIGHT = 76;
 
@@ -71,6 +74,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       showChat = true,
       chatStarted = false,
       isStreaming = false,
+      aborted = false,
       enhancingPrompt = false,
       promptEnhanced = false,
       messages,
@@ -85,6 +89,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     ref,
   ) => {
     const TEXTAREA_MAX_HEIGHT = chatStarted ? 400 : 200;
+    const [customSnippetOpen, setCustomSnippetOpen] = useState(false);
 
     return (
       <div
@@ -95,6 +100,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         )}
         data-chat-visible={showChat}
       >
+        <CustomSnippetDialog open={customSnippetOpen} onOpenChange={setCustomSnippetOpen} sendMessage={sendMessage} />
         <ClientOnly>{() => <Menu />}</ClientOnly>
         <div ref={scrollRef} className="flex overflow-y-auto w-full h-full">
           <div className={classNames(styles.Chat, 'flex flex-col flex-grow min-w-[var(--chat-min-width)] h-full')}>
@@ -152,6 +158,23 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         </div>
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      onClick={() => setCustomSnippetOpen(true)}
+                      className="group flex flex-col items-start gap-2 rounded-xl border border-dashed border-bolt-elements-borderColor/80 bg-bolt-elements-background-depth-1/40 p-4 text-left transition-theme hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/10"
+                    >
+                      <div className="flex items-center gap-2 text-sm font-semibold text-bolt-elements-textPrimary">
+                        <div className="i-ph:magic-wand-duotone text-base text-bolt-elements-item-contentAccent group-hover:text-bolt-elements-item-contentAccent" />
+                        Custom animation lab
+                      </div>
+                      <p className="text-sm text-bolt-elements-textSecondary leading-relaxed">
+                        Compose a bespoke motion snippet with Figplit and stage it for a specific section before
+                        merging.
+                      </p>
+                      <div className="text-xs uppercase tracking-[0.2em] text-bolt-elements-textTertiary">
+                        Targeted handoff
+                      </div>
+                    </button>
                   </div>
                   <p className="mt-3 text-xs text-bolt-elements-textTertiary">
                     These live under <code className="font-semibold">/snippets</code>. Ask Figplit to remix them or{' '}
@@ -173,10 +196,51 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       className="flex flex-col w-full flex-1 max-w-chat px-4 pb-6 mx-auto z-1"
                       messages={messages}
                       isStreaming={isStreaming}
+                      aborted={aborted}
                     />
                   ) : null;
                 }}
               </ClientOnly>
+              {chatStarted ? (
+                <div className="mx-auto mt-4 w-full max-w-chat px-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-bolt-elements-textTertiary">
+                    Snippet recommendations
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {SNIPPET_RECOMMENDATIONS.map((snippet) => (
+                      <button
+                        key={`recommendation-${snippet.id}`}
+                        type="button"
+                        onClick={(event) => {
+                          sendMessage?.(event, snippet.prompt);
+                        }}
+                        className="group flex min-w-[180px] flex-col items-start gap-1 rounded-lg border border-bolt-elements-borderColor/60 bg-bolt-elements-background-depth-1/60 px-3 py-2 text-left transition-theme hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/10"
+                      >
+                        <span className="text-sm font-semibold text-bolt-elements-textPrimary group-hover:text-bolt-elements-item-contentAccent">
+                          {snippet.title}
+                        </span>
+                        {snippet.bestFor?.length ? (
+                          <span className="text-[11px] uppercase tracking-[0.2em] text-bolt-elements-textTertiary">
+                            {snippet.bestFor.join(' • ')}
+                          </span>
+                        ) : null}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setCustomSnippetOpen(true)}
+                      className="group flex min-w-[180px] flex-col items-start gap-1 rounded-lg border border-dashed border-bolt-elements-borderColor/80 bg-bolt-elements-background-depth-1/40 px-3 py-2 text-left transition-theme hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/10"
+                    >
+                      <span className="text-sm font-semibold text-bolt-elements-textPrimary group-hover:text-bolt-elements-item-contentAccent">
+                        Custom animation lab
+                      </span>
+                      <span className="text-[11px] uppercase tracking-[0.2em] text-bolt-elements-textTertiary">
+                        Scoped deployment
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               <div
                 className={classNames('relative w-full max-w-chat mx-auto z-prompt', {
                   'sticky bottom-0': chatStarted,

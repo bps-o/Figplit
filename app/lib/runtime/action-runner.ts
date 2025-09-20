@@ -95,6 +95,17 @@ export class ActionRunner {
       });
   }
 
+  abortAll() {
+    const actions = this.actions.get();
+
+    for (const [actionId, action] of Object.entries(actions)) {
+      if (action.status === 'pending' || action.status === 'running') {
+        logger.debug('Aborting action', actionId);
+        action.abort();
+      }
+    }
+  }
+
   async #executeAction(actionId: string) {
     const action = this.actions.get()[actionId];
 

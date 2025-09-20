@@ -2,8 +2,9 @@ import { useStore } from '@nanostores/react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { chatStore } from '~/lib/stores/chat';
 import { classNames } from '~/utils/classNames';
-import { HeaderActionButtons } from './HeaderActionButtons.client';
 import { ChatDescription } from '~/lib/persistence/ChatDescription.client';
+import { DeployDialog } from '~/components/workbench/DeployDialog.client';
+import { HeaderActionButtons } from './HeaderActionButtons.client';
 
 export function Header() {
   const chat = useStore(chatStore);
@@ -37,9 +38,12 @@ export function Header() {
       {chat.started && (
         <ClientOnly>
           {() => (
-            <div className="mr-1">
-              <HeaderActionButtons />
-            </div>
+            <>
+              <div className="mr-1">
+                <HeaderActionButtons />
+              </div>
+              <DeployDialog />
+            </>
           )}
         </ClientOnly>
       )}
