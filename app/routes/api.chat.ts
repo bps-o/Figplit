@@ -2,14 +2,38 @@ import { type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { MAX_RESPONSE_SEGMENTS, MAX_TOKENS } from '~/lib/.server/llm/constants';
 import { CONTINUE_PROMPT } from '~/lib/.server/llm/prompts';
 import { streamText, type Messages, type StreamingOptions } from '~/lib/.server/llm/stream-text';
+import {
+  findSnippetsInMessages,
+  type SnippetRecord,
+} from '~/lib/.server/snippets/registry';
 import SwitchableStream from '~/lib/.server/llm/switchable-stream';
 
 export async function action(args: ActionFunctionArgs) {
   return chatAction(args);
 }
 
-async function chatAction({ context, request }: ActionFunctionArgs) {
-  const { messages } = await request.json<{ messages: Messages }>();
+const SNIPPET_CONTEXT_HEADING = 'Relevant snippet context:';
+
+export async function chatAction({ context, request }: ActionFunctionArgs) {
+  const { messages: incomingMessages } = await request.json<{ messages: Messages }>();
+
+  const messages: Messages = incomingMessages.map((message) => ({ ...message }));
+
+  const snippets = findSnippetsInMessages(messages);
+  const snippetContext = formatSnippetContext(snippets);
+
+  if (snippetContext) {
+    const lastUserIndex = findLastUserMessageIndex(messages);
+
+    if (lastUserIndex >= 0) {
+      messages[lastUserIndex] = {
+        ...messages[lastUserIndex],
+        content: `${messages[lastUserIndex].content}\n\n${snippetContext}`,
+      };
+    } else {
+      messages.push({ role: 'user', content: snippetContext });
+    }
+  }
 
   const stream = new SwitchableStream();
 
@@ -56,4 +80,42 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       statusText: 'Internal Server Error',
     });
   }
+}
+
+function formatSnippetContext(snippets: SnippetRecord[]): string | null {
+  if (snippets.length === 0) {
+    return null;
+  }
+
+  const sections = snippets.map((snippet) => {
+    const lines: string[] = [`Snippet: ${snippet.title} (${snippet.path})`];
+
+    if (snippet.description) {
+      lines.push(`Summary: ${snippet.description}`);
+    } else if (snippet.docblock.length > 0) {
+      lines.push(`Summary: ${snippet.docblock[0]}`);
+    }
+
+    if (snippet.bestFor?.length) {
+      lines.push(`Best for: ${snippet.bestFor.join(', ')}`);
+    }
+
+    lines.push('```tsx');
+    lines.push(snippet.code.trim());
+    lines.push('```');
+
+    return lines.join('\n');
+  });
+
+  return `${SNIPPET_CONTEXT_HEADING}\n${sections.join('\n\n')}`;
+}
+
+function findLastUserMessageIndex(messages: Messages) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === 'user') {
+      return index;
+    }
+  }
+
+  return -1;
 }

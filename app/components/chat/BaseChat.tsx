@@ -55,6 +55,7 @@ const FEATURE_CALLOUTS = [
 ];
 
 const FEATURED_SNIPPETS = landingSnippetLibrary.slice(0, 3);
+const SNIPPET_RECOMMENDATIONS = landingSnippetLibrary;
 
 const TEXTAREA_MIN_HEIGHT = 76;
 
@@ -168,6 +169,34 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   ) : null;
                 }}
               </ClientOnly>
+              {chatStarted ? (
+                <div className="mx-auto mt-4 w-full max-w-chat px-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-bolt-elements-textTertiary">
+                    Snippet recommendations
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {SNIPPET_RECOMMENDATIONS.map((snippet) => (
+                      <button
+                        key={`recommendation-${snippet.id}`}
+                        type="button"
+                        onClick={(event) => {
+                          sendMessage?.(event, snippet.prompt);
+                        }}
+                        className="group flex min-w-[180px] flex-col items-start gap-1 rounded-lg border border-bolt-elements-borderColor/60 bg-bolt-elements-background-depth-1/60 px-3 py-2 text-left transition-theme hover:border-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-item-backgroundAccent/10"
+                      >
+                        <span className="text-sm font-semibold text-bolt-elements-textPrimary group-hover:text-bolt-elements-item-contentAccent">
+                          {snippet.title}
+                        </span>
+                        {snippet.bestFor?.length ? (
+                          <span className="text-[11px] uppercase tracking-[0.2em] text-bolt-elements-textTertiary">
+                            {snippet.bestFor.join(' • ')}
+                          </span>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <div
                 className={classNames('relative w-full max-w-chat mx-auto z-prompt', {
                   'sticky bottom-0': chatStarted,
