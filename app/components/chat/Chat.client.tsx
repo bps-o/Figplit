@@ -13,6 +13,7 @@ import { fileModificationsToHTML } from '~/utils/diff';
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
 import { BaseChat } from './BaseChat';
+import type { SnippetSuggestion, SnippetSuggestionStreamEvent } from './types';
 import { createOnFinishHandler } from './chat-usage';
 
 const toastAnimation = cssTransition({
@@ -78,8 +79,20 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
   const [animationScope, animate] = useAnimate();
 
   const [tokenUsage, setTokenUsage] = useState<CompletionTokenUsage | null>(null);
+  const [snippetSuggestions, setSnippetSuggestions] = useState<SnippetSuggestion[]>([]);
+  const streamDataLengthRef = useRef(0);
+  const wasLoadingRef = useRef(false);
 
-  const { messages, isLoading, input, handleInputChange, setInput, stop, append } = useChat({
+  const {
+    messages,
+    isLoading,
+    input,
+    handleInputChange,
+    setInput,
+    stop,
+    append,
+    data: streamData,
+  } = useChat({
     api: '/api/chat',
     onError: (error) => {
       logger.error('Request failed\n\n', error);
@@ -119,6 +132,71 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
     chatStore.setKey('aborted', true);
     workbenchStore.abortAllActions();
   };
+
+  const isSnippetSuggestionEvent = (value: unknown): value is SnippetSuggestionStreamEvent => {
+    if (!value || typeof value !== 'object') {
+      return false;
+    }
+
+    if (!('type' in value) || (value as { type?: unknown }).type !== 'snippet-suggestions') {
+      return false;
+    }
+
+    return Array.isArray((value as { snippets?: unknown }).snippets);
+  };
+
+  useEffect(() => {
+    if (!Array.isArray(streamData)) {
+      if (streamData == null) {
+        streamDataLengthRef.current = 0;
+      }
+
+      return;
+    }
+
+    if (streamData.length < streamDataLengthRef.current) {
+      streamDataLengthRef.current = 0;
+    }
+
+    if (streamData.length === streamDataLengthRef.current) {
+      return;
+    }
+
+    const newEvents = streamData.slice(streamDataLengthRef.current);
+
+    streamDataLengthRef.current = streamData.length;
+
+    const newSuggestions: SnippetSuggestion[] = [];
+
+    for (const event of newEvents) {
+      if (isSnippetSuggestionEvent(event)) {
+        newSuggestions.push(...event.snippets);
+      }
+    }
+
+    if (newSuggestions.length === 0) {
+      return;
+    }
+
+    setSnippetSuggestions((current) => {
+      const next = new Map(current.map((suggestion) => [suggestion.id, suggestion]));
+
+      for (const suggestion of newSuggestions) {
+        next.set(suggestion.id, suggestion);
+      }
+
+      return Array.from(next.values());
+    });
+  }, [streamData]);
+
+  useEffect(() => {
+    if (isLoading && !wasLoadingRef.current) {
+      setSnippetSuggestions([]);
+      streamDataLengthRef.current = Array.isArray(streamData) ? streamData.length : 0;
+    }
+
+    wasLoadingRef.current = isLoading;
+  }, [isLoading, streamData]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -200,6 +278,7 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
       scrollRef={scrollRef}
       handleInputChange={handleInputChange}
       handleStop={abort}
+      snippetSuggestions={snippetSuggestions}
       messages={messages.map((message, i) => {
         if (message.role === 'user') {
           return message;
