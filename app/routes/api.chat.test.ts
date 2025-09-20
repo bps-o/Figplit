@@ -13,11 +13,9 @@ beforeEach(() => {
   streamTextMock.mockResolvedValue({
     streamData: {
       append: vi.fn(),
-
       close: vi.fn().mockResolvedValue(undefined),
     },
     toDataStreamResponse: () =>
-
       new Response(
         new ReadableStream({
           start(controller) {

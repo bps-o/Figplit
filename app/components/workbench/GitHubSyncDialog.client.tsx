@@ -1,5 +1,6 @@
 import { useStore } from '@nanostores/react';
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { WORK_DIR } from '~/utils/constants';
@@ -14,6 +15,10 @@ interface GitHubUserSummary {
 interface GitHubStatusResponse {
   authenticated: boolean;
   user?: GitHubUserSummary;
+}
+
+interface GitHubErrorResponse {
+  error?: unknown;
 }
 
 interface CommitResult {
@@ -173,7 +178,7 @@ export function GitHubSyncDialog() {
       });
 
       if (!response.ok) {
-        const message = await response.json().catch(() => undefined);
+        const message = (await response.json().catch(() => undefined)) as GitHubErrorResponse | undefined;
         const errorMessage = typeof message?.error === 'string' ? message.error : 'GitHub sync failed.';
         throw new Error(errorMessage);
       }
