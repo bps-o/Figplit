@@ -33,6 +33,11 @@ interface BaseChatProps {
   sendMessage?: (event: React.UIEvent, messageInput?: string) => void;
   handleInputChange?: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
   enhancePrompt?: () => void;
+  contextWarning?: boolean;
+  contextBlocked?: boolean;
+  contextSummary?: string | null;
+  onForkThread?: () => void;
+  isForking?: boolean;
 }
 
 const EXAMPLE_PROMPTS = [
@@ -86,6 +91,11 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       sendMessage,
       handleInputChange,
       enhancePrompt,
+      contextWarning = false,
+      contextBlocked = false,
+      contextSummary = null,
+      onForkThread,
+      isForking = false,
       handleStop,
     },
     ref,
@@ -270,12 +280,61 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       </CustomSnippetDialogTrigger>
                     </div>
                   </div>
-                ) : null}
-                <div
-                  className={classNames('relative w-full max-w-chat mx-auto z-prompt', {
-                    'sticky bottom-0': chatStarted,
-                  })}
-                >
+              ) : null}
+              {(contextWarning || contextBlocked) && (
+                <div className="mx-auto mt-4 w-full max-w-chat px-4">
+                  <div
+                    className={classNames(
+                      'rounded-lg border px-4 py-3 text-sm leading-relaxed transition-theme text-bolt-elements-textPrimary',
+                      contextBlocked
+                        ? 'border-rose-500/60 bg-rose-500/10'
+                        : 'border-amber-500/60 bg-amber-500/10',
+                    )}
+                  >
+                    <div className="font-semibold uppercase tracking-[0.22em] text-xs">
+                      {contextBlocked ? 'Context limit reached' : 'Context limit warning'}
+                    </div>
+                    <p className="mt-2 text-bolt-elements-textPrimary">
+                      {contextBlocked
+                        ? 'This thread is too long for the model to keep full context. Fork the workspace into a fresh chat to continue.'
+                        : 'This thread is getting close to the context window. Plan to fork soon so the agent keeps the full story.'}
+                    </p>
+                    {contextBlocked && (
+                      <div className="mt-3 space-y-3">
+                        <button
+                          type="button"
+                          onClick={onForkThread}
+                          disabled={isForking || !onForkThread}
+                          className={classNames(
+                            'inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition-theme',
+                            isForking
+                              ? 'border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 text-bolt-elements-textSecondary cursor-wait'
+                              : !onForkThread
+                                ? 'border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 text-bolt-elements-textSecondary cursor-not-allowed'
+                                : 'border-bolt-elements-item-backgroundAccent bg-bolt-elements-item-backgroundAccent/10 text-bolt-elements-item-contentAccent hover:bg-bolt-elements-item-backgroundAccent/20',
+                          )}
+                        >
+                          <span className="i-ph:git-branch-duotone text-base" />
+                          {isForking ? 'Preparing fork…' : 'Fork progress into new thread'}
+                        </button>
+                        {contextSummary && (
+                          <div className="rounded-md border border-bolt-elements-borderColor/70 bg-bolt-elements-background-depth-2/70 p-3 text-xs text-bolt-elements-textSecondary">
+                            <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-bolt-elements-textTertiary">
+                              Summary of edits carried forward
+                            </div>
+                            <pre className="mt-2 whitespace-pre-wrap leading-relaxed">{contextSummary}</pre>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div
+                className={classNames('relative w-full max-w-chat mx-auto z-prompt', {
+                  'sticky bottom-0': chatStarted,
+                })}
+              >
                   <div
                     className={classNames(
                       'shadow-sm border border-bolt-elements-borderColor bg-bolt-elements-prompt-background backdrop-filter backdrop-blur-[8px] rounded-lg overflow-hidden',
@@ -283,8 +342,16 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   >
                     <textarea
                       ref={textareaRef}
-                      className={`w-full pl-4 pt-4 pr-16 focus:outline-none resize-none text-md text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary bg-transparent`}
+                      className={classNames(
+                        'w-full pl-4 pt-4 pr-16 focus:outline-none resize-none text-md text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary bg-transparent',
+                        contextBlocked && 'opacity-70 cursor-not-allowed',
+                      )}
                       onKeyDown={(event) => {
+                        if (contextBlocked) {
+                          event.preventDefault();
+                          return;
+                        }
+
                         if (event.key === 'Enter') {
                           if (event.shiftKey) {
                             return;
@@ -297,23 +364,37 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       }}
                       value={input}
                       onChange={(event) => {
+                        if (contextBlocked) {
+                          return;
+                        }
+
                         handleInputChange?.(event);
                       }}
                       style={{
                         minHeight: TEXTAREA_MIN_HEIGHT,
                         maxHeight: TEXTAREA_MAX_HEIGHT,
                       }}
-                      placeholder="What landing page magic should Figplit design next?"
+                      placeholder={
+                        contextBlocked
+                          ? 'This chat hit the context window limit. Fork to continue in a fresh thread.'
+                          : 'What landing page magic should Figplit design next?'
+                      }
+                      disabled={contextBlocked}
                       translate="no"
                     />
                     <ClientOnly>
                       {() => (
                         <SendButton
-                          show={input.length > 0 || isStreaming}
+                          show={(!contextBlocked && input.length > 0) || isStreaming}
                           isStreaming={isStreaming}
+                          disabled={contextBlocked}
                           onClick={(event) => {
                             if (isStreaming) {
                               handleStop?.();
+                              return;
+                            }
+
+                            if (contextBlocked) {
                               return;
                             }
 
@@ -327,7 +408,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         <TokenUsageSummary usage={tokenUsage} limit={tokenLimit} />
                         <IconButton
                           title="Enhance prompt"
-                          disabled={input.length === 0 || enhancingPrompt}
+                          disabled={contextBlocked || input.length === 0 || enhancingPrompt}
                           className={classNames({
                             'opacity-100!': enhancingPrompt,
                             'text-bolt-elements-item-contentAccent! pr-1.5 enabled:hover:bg-bolt-elements-item-backgroundAccent!':
@@ -348,7 +429,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                           )}
                         </IconButton>
                       </div>
-                      {input.length > 3 ? (
+                      {!contextBlocked && input.length > 3 ? (
                         <div className="text-xs text-bolt-elements-textTertiary">
                           Use <kbd className="kdb">Shift</kbd> + <kbd className="kdb">Return</kbd> for a new line
                         </div>
