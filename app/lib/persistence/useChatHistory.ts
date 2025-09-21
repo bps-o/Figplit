@@ -19,6 +19,7 @@ const persistenceEnabled = !import.meta.env.VITE_DISABLE_PERSISTENCE;
 export const db = persistenceEnabled ? await openDatabase() : undefined;
 
 export const chatId = atom<string | undefined>(undefined);
+export const chatUrlId = atom<string | undefined>(undefined);
 export const description = atom<string | undefined>(undefined);
 
 export function useChatHistory() {
@@ -45,7 +46,10 @@ export function useChatHistory() {
         .then((storedMessages) => {
           if (storedMessages && storedMessages.messages.length > 0) {
             setInitialMessages(storedMessages.messages);
-            setUrlId(storedMessages.urlId);
+            const nextUrlId = storedMessages.urlId ?? storedMessages.id;
+
+            setUrlId(nextUrlId);
+            chatUrlId.set(nextUrlId);
             description.set(storedMessages.description);
             chatId.set(storedMessages.id);
           } else {
@@ -71,10 +75,11 @@ export function useChatHistory() {
       const { firstArtifact } = workbenchStore;
 
       if (!urlId && firstArtifact?.id) {
-        const urlId = await getUrlId(db, firstArtifact.id);
+        const nextUrlId = await getUrlId(db, firstArtifact.id);
 
-        navigateChat(urlId);
-        setUrlId(urlId);
+        navigateChat(nextUrlId);
+        setUrlId(nextUrlId);
+        chatUrlId.set(nextUrlId);
       }
 
       if (!description.get() && firstArtifact?.title) {
@@ -88,10 +93,36 @@ export function useChatHistory() {
 
         if (!urlId) {
           navigateChat(nextId);
+          setUrlId(nextId);
+          chatUrlId.set(nextId);
         }
       }
 
-      await setMessages(db, chatId.get() as string, messages, urlId, description.get());
+      const id = chatId.get() as string;
+      const persistedUrlId = urlId ?? chatUrlId.get();
+
+      if (persistedUrlId) {
+        chatUrlId.set(persistedUrlId);
+      }
+
+      await setMessages(db, id, messages, persistedUrlId, description.get());
+    },
+    currentUrlId: urlId ?? chatUrlId.get(),
+    forkChat: async ({ messages, description: nextDescription }: { messages: Message[]; description: string }) => {
+      if (!db) {
+        throw new Error('Chat persistence is unavailable');
+      }
+
+      if (messages.length === 0) {
+        throw new Error('Cannot fork an empty conversation');
+      }
+
+      const nextId = await getNextId(db);
+      const nextUrlId = await getUrlId(db, nextId);
+
+      await setMessages(db, nextId, messages, nextUrlId, nextDescription);
+
+      return { id: nextId, urlId: nextUrlId };
     },
   };
 }
